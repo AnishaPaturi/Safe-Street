@@ -19,37 +19,46 @@ import { Video } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import MapView, { Marker } from 'react-native-maps';
 import * as FileSystem from 'expo-file-system';
+import { LocationGeocodedAddress } from 'expo-location';
 
 export default function HomeScreen() {
   const [screen, setScreen] = useState('home');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [image, setImage] = useState(null);
-  const [location, setLocation] = useState(null);
+  const [image, setImage] = useState<string | null>(null);
+  const [location, setLocation] = useState<string | null>(null);
   // State for sign-up fields
   const [fullName, setFullName] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [occupation, setOccupation] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [tooltipVisible, setTooltipVisible] = useState(false);
-  const [latestUpload, setLatestUpload] = useState({ image: null, location: null, date: '' });
+  const [latestUpload, setLatestUpload] = useState<{
+    image: string | null;
+    location: string | null;
+    date: string;
+  }>({
+    image: null,
+    location: null,
+    date: '',
+  });
   // Animations
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
   const buttonOpacity = useRef(new Animated.Value(0)).current;
-  const [selectedRole, setSelectedRole] = useState(null);
+  const [selectedRole, setSelectedRole] = useState<string | null>(null);
   const [otp, setOtp] = useState('');
-  const [generatedOtp, setGeneratedOtp] = useState(null);
+  const [generatedOtp, setGeneratedOtp] = useState<string | null>(null);
   const [newPassword, setNewPassword] = useState('');
   const [resetEmail, setResetEmail] = useState('');
   const [showManualLocation, setShowManualLocation] = useState(false);
   const [address, setAddress] = useState('');
   const [position, setPosition] = useState<[number, number] | null>(null);
-  const [selectedAddress, setSelectedAddress] = useState(null);
+  const [selectedAddress, setSelectedAddress] =  useState<LocationGeocodedAddress | null>(null);
   const [aiSummary, setAiSummary] = useState('');
-  
-
+  const [selectedLocation, setSelectedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+ 
   useEffect(() => {
     const loadRole = async () => {
       const savedRole = await AsyncStorage.getItem('selectedRole');
@@ -66,8 +75,8 @@ export default function HomeScreen() {
   
   useEffect(() => {
     if (screen === 'summary' && latestUpload.image) {
-      setAiSummary(''); // Clear any old summary
-      fetchAISummary(); // Fetch new summary
+      setAiSummary(''); 
+      fetchAISummary(); 
     }
   }, [screen]);
   
@@ -101,7 +110,7 @@ export default function HomeScreen() {
     }
   
     try {
-      const response = await fetch('https://eeaa-183-82-237-45.ngrok-free.app/api/auth/login', {
+      const response = await fetch('https://c480-183-82-237-45.ngrok-free.app/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -140,8 +149,10 @@ export default function HomeScreen() {
   
     } catch (err) {
       console.error('Login Error:', err);
-      Alert.alert('Login Error', err.message);
+      const message = err instanceof Error ? err.message : 'Something went wrong';
+      Alert.alert('Login Error', message);
     }
+    
   };
     
   const pickImage = async () => {
@@ -182,17 +193,17 @@ export default function HomeScreen() {
       return;
     }
   
-    function LocationPicker({ setPosition }: { setPosition: (pos: [number, number]) => void }) {
-      useMapEvents({
-        click(e) {
-          setPosition([e.latlng.lat, e.latlng.lng]);
-        },
-      });
-      return null;
-    }
+    // function LocationPicker({ setPosition }: { setPosition: (pos: [number, number]) => void }) {
+    //   useMapEvents({
+    //     click(e) {
+    //       setPosition([e.latlng.lat, e.latlng.lng]);
+    //     },
+    //   });
+    //   return null;
+    // }
     
     try {
-      const response = await fetch('https://eeaa-183-82-237-45.ngrok-free.app/api/auth/signup', {
+      const response = await fetch('https://c480-183-82-237-45.ngrok-free.app/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -202,7 +213,7 @@ export default function HomeScreen() {
           password,
         }),
       });
-      const getAddressFromCoords = async (coords) => {
+      const getAddressFromCoords = async (coords: { latitude: number; longitude: number }) => {
         try {
           const [address] = await Location.reverseGeocodeAsync(coords);
           return address;
@@ -211,7 +222,7 @@ export default function HomeScreen() {
           return null;
         }
       };
-      const handleRegionChangeComplete = async (region) => {
+      const handleRegionChangeComplete = async (region: { latitude: number; longitude: number }) => {
         setSelectedLocation({ latitude: region.latitude, longitude: region.longitude });
         
         const address = await getAddressFromCoords(region);
@@ -237,10 +248,11 @@ export default function HomeScreen() {
   
       Alert.alert('Success', 'Sign Up Successful. Redirecting to Login...');
       setScreen('login');
-    } catch (err) {
+    }catch (err) {
       console.error('Signup Error:', err);
-      Alert.alert('Signup Error', err.message);
-    }
+      const message = err instanceof Error ? err.message : 'Something went wrong';
+      Alert.alert('Signup Error', message);
+    }    
   };
   
   
@@ -297,18 +309,50 @@ export default function HomeScreen() {
   };
   const MapContainerComponent = ({ position, setPosition }: { position: [number, number] | null, setPosition: (pos: [number, number]) => void }) => {
     return (
-      <MapContainer
-        center={position ?? [22.9734, 78.6569]}
-        zoom={5}
-        style={{ height: '100%', width: '100%' }}
+      // <MapContainer
+      //   center={position ?? [22.9734, 78.6569]}
+      //   zoom={5}
+      //   style={{ height: '100%', width: '100%' }}
+      // >
+      //   <TileLayer
+      //     attribution='&copy; OpenStreetMap contributors'
+      //     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      //   />
+      //   <LocationPicker setPosition={setPosition} />
+      //   {position && <Marker position={position} />}
+      // </MapContainer>
+      <MapView
+        style={{ height: 200, width: '100%' }}
+        initialRegion={{
+          latitude: position?.[0] ?? 22.9734,
+          longitude: position?.[1] ?? 78.6569,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        }}
+        onPress={async (e) => {
+          const { latitude, longitude } = e.nativeEvent.coordinate;
+          setPosition([latitude, longitude]);
+
+          try {
+            const [addr] = await Location.reverseGeocodeAsync({ latitude, longitude });
+            setAddress(
+              `${addr.name ? addr.name + ', ' : ''}` +
+              `${addr.street ? addr.street + ', ' : ''}` +
+              `${addr.postalCode ? addr.postalCode + ', ' : ''}` +
+              `${addr.city ? addr.city + ', ' : ''}` +
+              `${addr.region ? addr.region + ', ' : ''}` +
+              `${addr.country ? addr.country : ''}`
+            );
+          } catch (error) {
+            console.error("Reverse geocoding failed:", error);
+          }
+        }}
       >
-        <TileLayer
-          attribution='&copy; OpenStreetMap contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        <LocationPicker setPosition={setPosition} />
-        {position && <Marker position={position} />}
-      </MapContainer>
+        {position && (
+          <Marker coordinate={{ latitude: position[0], longitude: position[1] }} />
+        )}
+      </MapView>
+
     );
   };
   
@@ -324,9 +368,12 @@ export default function HomeScreen() {
   };
   const handleSummaryClick = () => {
     setLatestUpload({
-      image: selectedImageUri, // If from file picker or camera
-      location: `Latitude: ${latitude}, Longitude: ${longitude}`,
-    });
+      image: image,
+      location: position
+        ? `Latitude: ${position[0]}, Longitude: ${position[1]}`
+        : 'No location',
+      date: new Date().toLocaleDateString(),
+    });    
     setScreen('summary');
   };
   
@@ -343,7 +390,7 @@ export default function HomeScreen() {
   };
   
 
-  const convertUriIfNeeded = async (uri) => {
+  const convertUriIfNeeded = async (uri: string): Promise<string> => {
     if (uri && uri.startsWith('content://')) {
       const newPath = FileSystem.cacheDirectory + 'converted.jpg';
       await FileSystem.copyAsync({ from: uri, to: newPath });
@@ -357,7 +404,11 @@ export default function HomeScreen() {
       console.log('Starting fetchAISummary');
       console.log('Original Image URI:', latestUpload.image);
   
+      if (!latestUpload.image) {
+        throw new Error("No image found to process.");
+      }
       const imageUri = await convertUriIfNeeded(latestUpload.image);
+      
       console.log('Processed Image URI:', imageUri);
   
       const formData = new FormData();
@@ -365,11 +416,11 @@ export default function HomeScreen() {
         uri: imageUri,
         name: 'photo.jpg',
         type: 'image/jpeg',
-      });
+      } as any);
   
       console.log('FormData created, making request...');
   
-      const aiResponse = await fetch('https://eeaa-183-82-237-45.ngrok-free.app/analyze', {
+      const aiResponse = await fetch('https://c480-183-82-237-45.ngrok-free.app/analyze', {
         method: 'POST',
         body: formData,
       });
@@ -395,9 +446,12 @@ export default function HomeScreen() {
         throw new Error(`Unexpected response format: ${rawText}`);
       }
   
-    } catch (err) {
-      console.error('AI Summary Error:', err);
-      setAiSummary('[Error generating summary: ' + err.message + ']');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setAiSummary('[Error generating summary: ' + err.message + ']');
+      } else {
+        setAiSummary('[Error generating summary: Unknown error]');
+      }
     }
   };
   
@@ -416,39 +470,67 @@ export default function HomeScreen() {
         setScreen('summary');
   };
   const uploadToServer = async () => {
-    try {
-      const formData = new FormData();
-      formData.append('userId', 'anishapaturi481');
-      formData.append('location', latestUpload.location);
-      formData.append('summary', aiSummary);
-      formData.append('image', {
-        uri: latestUpload.image,
-        name: 'upload.jpg',
-        type: 'image/jpeg',
-      });
+    let formData: FormData;
   
-      const res = await fetch('https://eeaa-183-82-237-45.ngrok-free.app/api/upload/new', {
+    try {
+      // Create a new FormData object
+      formData = new FormData();
+      formData.append('userId', 'anishapaturi481');
+  
+      // Handle location being null
+      const location = latestUpload.location ? latestUpload.location : ''; // fallback to an empty string or a default value
+      formData.append('location', location);
+  
+      formData.append('summary', aiSummary);
+  
+      // Ensure the image object is correctly formatted
+      if (latestUpload.image) {
+        formData.append('image', {
+          uri: latestUpload.image,
+          name: 'upload.jpg',
+          type: 'image/jpeg',
+        } as any); // Use `as any` to cast it to an acceptable type if necessary
+      }
+    } catch (error) {
+      console.error('Error while appending data to FormData:', error);
+      return; // Exit the function if there was an error creating formData
+    }
+  
+    try {
+      // Perform the fetch request with FormData
+      const res = await fetch('https://c480-183-82-237-45.ngrok-free.app/api/upload/new', {
         method: 'POST',
-        body: formData,
+        body: formData, // body should be the formData object
       });
   
       const text = await res.text();
       let data;
+  
+      // Attempt to parse the response text as JSON
       try {
         data = JSON.parse(text);
       } catch {
         throw new Error('Upload failed: Invalid server response');
       }
   
+      // If the response is not OK, throw an error
       if (!res.ok) throw new Error(data.error || 'Upload failed');
   
+      // If everything goes well
       Alert.alert("Success", "Upload sent to Supervisor");
       setScreen('workerDashboard');
-    } catch (err) {
-      console.error("Upload Error:", err);
-      Alert.alert("Upload Failed", err.message);
+    } catch (err: unknown) {
+      // Type the error as an instance of Error
+      if (err instanceof Error) {
+        console.error("Upload Error:", err);
+        Alert.alert("Upload Failed", err.message);
+      } else {
+        console.error("Unknown error:", err);
+        Alert.alert("Upload Failed", "An unknown error occurred");
+      }
     }
   };
+  
   
   
   return (
@@ -886,4 +968,6 @@ const styles = StyleSheet.create({
   manual_backButton: {backgroundColor: '#4b5563', paddingVertical: 12, borderRadius: 8, alignItems: 'center',},
   summaryText: {fontSize: 18,fontWeight: 'bold', color: '#007b8f', marginTop: 10, },
   metaText: { marginTop: 20, fontSize: 14, color: '#666', textAlign: 'center',}, 
+  boldText: { fontWeight: 'bold', },
+  backButtonContainer: { position: 'absolute', top: 20, left: 20, },
 });
