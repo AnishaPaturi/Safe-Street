@@ -1,109 +1,114 @@
-import { StyleSheet, Image, Platform } from 'react-native';
+import { StyleSheet, Image, Platform, ScrollView, Text } from 'react-native';
 
-import { Collapsible } from '@/components/Collapsible';
-import { ExternalLink } from '@/components/ExternalLink';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { IconSymbol } from '@/components/ui/IconSymbol';
 
 export default function TabTwoScreen() {
   return (
     <ParallaxScrollView
-      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}
-      headerImage={
-        <IconSymbol
-          size={310}
-          color="#808080"
-          name="chevron.left.forwardslash.chevron.right"
-          style={styles.headerImage}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Explore</ThemedText>
+      headerBackgroundColor={{ light: '#D0D0D0', dark: '#353636' }}>
+      <ThemedView style={styles.imageContainer}>
+        <Image source={require('@/assets/images/uploaded_image.png')} style={styles.image} />
       </ThemedView>
-      <ThemedText>This app includes example code to help you get started.</ThemedText>
-      <Collapsible title="File-based routing">
-        <ThemedText>
-          This app has two screens:{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">app/(tabs)/explore.tsx</ThemedText>
-        </ThemedText>
-        <ThemedText>
-          The layout file in <ThemedText type="defaultSemiBold">app/(tabs)/_layout.tsx</ThemedText>{' '}
-          sets up the tab navigator.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/router/introduction">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Android, iOS, and web support">
-        <ThemedText>
-          You can open this project on Android, iOS, and the web. To open the web version, press{' '}
-          <ThemedText type="defaultSemiBold">w</ThemedText> in the terminal running this project.
-        </ThemedText>
-      </Collapsible>
-      <Collapsible title="Images">
-        <ThemedText>
-          For static images, you can use the <ThemedText type="defaultSemiBold">@2x</ThemedText> and{' '}
-          <ThemedText type="defaultSemiBold">@3x</ThemedText> suffixes to provide files for
-          different screen densities
-        </ThemedText>
-        <Image source={require('@/assets/images/react-logo.png')} style={{ alignSelf: 'center' }} />
-        <ExternalLink href="https://reactnative.dev/docs/images">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Custom fonts">
-        <ThemedText>
-          Open <ThemedText type="defaultSemiBold">app/_layout.tsx</ThemedText> to see how to load{' '}
-          <ThemedText style={{ fontFamily: 'SpaceMono' }}>
-            custom fonts such as this one.
-          </ThemedText>
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/versions/latest/sdk/font">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Light and dark mode components">
-        <ThemedText>
-          This template has light and dark mode support. The{' '}
-          <ThemedText type="defaultSemiBold">useColorScheme()</ThemedText> hook lets you inspect
-          what the user's current color scheme is, and so you can adjust UI colors accordingly.
-        </ThemedText>
-        <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-          <ThemedText type="link">Learn more</ThemedText>
-        </ExternalLink>
-      </Collapsible>
-      <Collapsible title="Animations">
-        <ThemedText>
-          This template includes an example of an animated component. The{' '}
-          <ThemedText type="defaultSemiBold">components/HelloWave.tsx</ThemedText> component uses
-          the powerful <ThemedText type="defaultSemiBold">react-native-reanimated</ThemedText>{' '}
-          library to create a waving hand animation.
-        </ThemedText>
-        {Platform.select({
-          ios: (
-            <ThemedText>
-              The <ThemedText type="defaultSemiBold">components/ParallaxScrollView.tsx</ThemedText>{' '}
-              component provides a parallax effect for the header image.
-            </ThemedText>
-          ),
-        })}
-      </Collapsible>
+      <ScrollView style={styles.textContainer}>
+        <Text style={styles.heading}>Project Overview</Text>
+        <Text style={styles.paragraph}>
+          This project involves the development of a structured application with distinct roles—Worker and Supervisor—each having specific functionalities. The application ensures a seamless user experience for reporting and assessing road damage using image processing and location tracking, ultimately facilitating communication between field workers and supervisors.
+        </Text>
+        
+        <Text style={styles.heading}>Role Selection Screen</Text>
+        <Text style={styles.paragraph}>
+          The Role Selection screen will display two buttons: Worker and Supervisor. A Back button will be provided to allow users to navigate back to the Home Screen. Selecting either role will redirect the user to the Authentication Page.
+        </Text>
+
+        <Text style={styles.heading}>Authentication Page</Text>
+        <Text style={styles.paragraph}>
+          The Authentication Page will feature two options: Sign Up and Login.
+        </Text>
+        
+        <Text style={styles.subheading}>Sign Up</Text>
+        <Text style={styles.paragraph}>
+          Users will provide the following details:
+          - Name
+          - Phone Number
+          - Email
+          - Password
+          - Confirm Password
+          Upon clicking the Sign Up button, the user will be redirected to the Login Page.
+          A "Have an account? Login Here" option will allow users to navigate directly to the Login Page.
+        </Text>
+        
+        <Text style={styles.subheading}>Login</Text>
+        <Text style={styles.paragraph}>
+          Users will enter their Email and Password to log in. Additional options include:
+          - "New user? Sign up here" for account creation.
+          - "Forgot password?" for password recovery.
+        </Text>
+        
+        <Text style={styles.subheading}>Password Recovery</Text>
+        <Text style={styles.paragraph}>
+          If a user forgets their password, they can click "Forgot Password?" to initiate the recovery process. They will be prompted to enter their registered email address, and a One-Time Password (OTP) will be sent to their email. Upon entering the OTP in the application, if the verification is successful, the user will be prompted to set a new password. After resetting the password, they will be redirected to the Login Page to continue.
+        </Text>
+        
+        <Text style={styles.heading}>Worker Dashboard</Text>
+        <Text style={styles.subheading}>Capture an Image</Text>
+        <Text style={styles.paragraph}>
+          Users can click a button labeled "Click Now" to open the camera. They can then capture an image of a pothole or road damage. After capturing the image, a confirmation screen will display the image along with the automatically detected address. If necessary, users can manually edit the address in a text field below the image. Before submission, a "Summarize" button will generate a detailed summary of the image using a Vision Transformer (ViT) model. Clicking "Send to Supervisor" will transmit the image, address, and summary to the Supervisor’s dashboard.
+        </Text>
+        
+        <Text style={styles.subheading}>Upload an Image</Text>
+        <Text style={styles.paragraph}>
+          Users can select "Upload Image Now" to access their device’s gallery or file system. Once an image is selected, the user will be prompted to enter the address manually or pinpoint the location on an interactive map. At least one of these options must be completed before proceeding. The "Summarize" button will analyze the image and generate a summary report. If the summary is accurate, the user can proceed by clicking "Send to Supervisor", or they may choose "Try Again" if the results are unsatisfactory. After submitting an image, the user will be taken to a confirmation screen with a single "Exit" button, which will redirect them back to the Home Screen.
+        </Text>
+        
+        <Text style={styles.heading}>Supervisor Dashboard</Text>
+        <Text style={styles.paragraph}>
+          When a Supervisor logs in, they will have access to all recent uploads submitted by Workers. The dashboard will display:
+          - Worker Details (Name, Contact Information)
+          - Uploaded Image
+          - Detected Address
+          - Generated Summary Report
+          For each reported issue, the Supervisor will have the option to assess the submission and forward it to the relevant authorities via email. The authorities will receive a notification containing all relevant details. After completing the assessments, the Supervisor will be redirected to a confirmation screen with a single "Exit" button, which will return them to the Home Screen.
+        </Text>
+        
+        <Text style={styles.heading}>Conclusion</Text>
+        <Text style={styles.paragraph}>
+          This structured workflow ensures an efficient process for capturing, analyzing, and reporting road damage. The integration of image recognition technology, location tracking, and automated reporting enhances communication between Workers, Supervisors, and Authorities, facilitating rapid response and maintenance.
+        </Text>
+      </ScrollView>
     </ParallaxScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  headerImage: {
-    color: '#808080',
-    bottom: -90,
-    left: -35,
-    position: 'absolute',
+  imageContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 20,
   },
-  titleContainer: {
-    flexDirection: 'row',
-    gap: 8,
+  image: {
+    width: '140%',
+    height: undefined,
+    aspectRatio: 1.5,
+    resizeMode: 'contain',
+  },
+  textContainer: {
+    padding: 20,
+  },
+  heading: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginTop: 15,
+  },
+  subheading: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginTop: 10,
+  },
+  paragraph: {
+    fontSize: 14,
+    textAlign: 'justify',
+    marginTop: 5,
   },
 });
