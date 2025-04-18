@@ -3,6 +3,7 @@ from PIL import Image
 import torch
 from transformers import Blip2Processor, Blip2ForConditionalGeneration
 import io
+import traceback
 from flask_cors import CORS
 
 
@@ -16,6 +17,10 @@ model = Blip2ForConditionalGeneration.from_pretrained(
     "Salesforce/blip2-opt-2.7b",
     torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
 ).to(device)
+
+if torch.cuda.is_available():
+    print(f"GPU Memory Allocated: {torch.cuda.memory_allocated()}")
+    print(f"GPU Memory Cached: {torch.cuda.memory_reserved()}")
 
 
 def generate_caption(image):
@@ -61,19 +66,27 @@ def generate_summary(caption):
 
 
 @app.route('/analyze', methods=['POST'])
-def analyze_image():
+def analyze():
     print("✅ /analyze endpoint hit")
     print("Request.files:", request.files)
 
     if 'image' not in request.files:
         print("❌ No image in request.files")
         return jsonify({'error': 'No image provided'}), 400
+    
+    # if image.format not in ['JPEG', 'PNG']:
+    #     print(f"❌ Unsupported image format: {image.format}")
+    #     return jsonify({'error': 'Unsupported image format'}), 400
+
+    # print(f"✅ Image format is {image.format}, proceeding with processing...")
+
 
     file = request.files['image']
-    print(f"📸 Received image: {file.filename}")
+    print(f"📸 Received image: {file.filename}, Size: {len(file.read())} bytes")
+    file.seek(0) 
 
     try:
-        print("📥 Reading image data...")
+        # Rewind file to start reading it again
         image_bytes = file.read()
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         print("✅ Image successfully loaded and converted")
@@ -92,6 +105,8 @@ def analyze_image():
     except Exception as e:
         print("🔥 Exception caught during processing:", str(e))
         return jsonify({'error': f'Internal server error: {str(e)}'}), 500
+    
+
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=5000)

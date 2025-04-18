@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Image,
@@ -110,7 +109,7 @@ export default function HomeScreen() {
     }
   
     try {
-      const response = await fetch('https://c480-183-82-237-45.ngrok-free.app/api/auth/login', {
+      const response = await fetch('https://f5f7-183-82-237-45.ngrok-free.app/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -203,7 +202,7 @@ export default function HomeScreen() {
     // }
     
     try {
-      const response = await fetch('https://c480-183-82-237-45.ngrok-free.app/api/auth/signup', {
+      const response = await fetch('https://f5f7-183-82-237-45.ngrok-free.app/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -420,7 +419,7 @@ export default function HomeScreen() {
   
       console.log('FormData created, making request...');
   
-      const aiResponse = await fetch('https://c480-183-82-237-45.ngrok-free.app/analyze', {
+      const aiResponse = await fetch('https://f5f7-183-82-237-45.ngrok-free.app/analyze', {
         method: 'POST',
         body: formData,
       });
@@ -498,7 +497,7 @@ export default function HomeScreen() {
   
     try {
       // Perform the fetch request with FormData
-      const res = await fetch('https://c480-183-82-237-45.ngrok-free.app/api/upload/new', {
+      const res = await fetch('https://f5f7-183-82-237-45.ngrok-free.app/api/upload/new', {
         method: 'POST',
         body: formData, // body should be the formData object
       });
@@ -928,7 +927,6 @@ const styles = StyleSheet.create({
   background: { flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' },
   container: { width: '60%', height: '50%', padding: 20, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   authContainer: { width: '50%', height: '50%', padding: 20, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
-  buttonContainer: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 15 },
   authButton: { backgroundColor: 'green', width: 120, height: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   authBackButton: { marginTop: 20, backgroundColor: 'red', paddingVertical: 10, paddingHorizontal: 40, borderRadius: 8, alignSelf: 'center' },
   authTitle: {fontSize: 28,fontWeight: 'bold', color: 'white', textAlign: 'center',},
@@ -970,4 +968,6 @@ const styles = StyleSheet.create({
   metaText: { marginTop: 20, fontSize: 14, color: '#666', textAlign: 'center',}, 
   boldText: { fontWeight: 'bold', },
   backButtonContainer: { position: 'absolute', top: 20, left: 20, },
+  buttonContainer: { flexDirection: 'column',justifyContent: 'center',alignItems: 'center',gap: 15,marginBottom: 20,},
 });
+
