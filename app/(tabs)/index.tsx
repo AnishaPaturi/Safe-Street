@@ -19,8 +19,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import MapView, { Marker } from 'react-native-maps';
 import * as FileSystem from 'expo-file-system';
 import { LocationGeocodedAddress } from 'expo-location';
+import { ScrollView } from 'react-native';
+import { LineChart } from 'react-native-chart-kit';
+import { Dimensions } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 
-export default function HomeScreen() {
+
+
+export default function HomeScreen() 
+{
   const [screen, setScreen] = useState('home');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -57,6 +64,11 @@ export default function HomeScreen() {
   const [selectedAddress, setSelectedAddress] =  useState<LocationGeocodedAddress | null>(null);
   const [aiSummary, setAiSummary] = useState('');
   const [selectedLocation, setSelectedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [totalReports, setTotalReports] = useState(0);
+  const [pendingReports, setPendingReports] = useState(0);
+  const [urgentReports, setUrgentReports] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+
  
   useEffect(() => {
     const loadRole = async () => {
@@ -71,13 +83,77 @@ export default function HomeScreen() {
       });
     });
   }, []);
+  const convertUriIfNeeded = async (uri: string): Promise<string> => {
+    if (uri && uri.startsWith('content://')) {
+      const newPath = FileSystem.cacheDirectory + 'converted.jpg';
+      await FileSystem.copyAsync({ from: uri, to: newPath });
+      return newPath;
+    }
+    return uri;
+  };
+  const fetchAISummary = async (): Promise<void> => {
+    try {
+      console.log('Starting fetchAISummary');
+      console.log('Original Image URI:', latestUpload.image);
+  
+      if (!latestUpload.image) {
+        throw new Error("No image found to process.");
+      }
+      const imageUri = await convertUriIfNeeded(latestUpload.image);
+      
+      console.log('Processed Image URI:', imageUri);
+  
+      const formData = new FormData();
+      formData.append('image', {
+        uri: imageUri,
+        name: 'photo.jpg',
+        type: 'image/jpeg',
+      } as any);
+  
+      console.log('FormData created, making request...');
+  
+      const aiResponse = await fetch('https://1a88-183-82-237-45.ngrok-free.app/analyze', {
+        method: 'POST',
+        body: formData,
+      });
+  
+      console.log('Response status:', aiResponse.status);
+  
+      const contentType = aiResponse.headers.get("content-type");
+      console.log('Content-Type:', contentType);
+  
+      if (!aiResponse.ok) {
+        const errorText = await aiResponse.text();
+        console.error('Server Error:', errorText);
+        throw new Error(`Server Error: ${errorText}`);
+      }
+  
+      if (contentType && contentType.includes("application/json")) {
+        const data = await aiResponse.json();
+        console.log('AI Response:', data);
+        setAiSummary(data.summary || data.caption || '[No summary returned]');
+      } else {
+        const rawText = await aiResponse.text();
+        console.log('Unexpected response:', rawText);
+        throw new Error(`Unexpected response format: ${rawText}`);
+      }
+  
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setAiSummary('[Error generating summary: ' + err.message + ']');
+      } else {
+        setAiSummary('[Error generating summary: Unknown error]');
+      }
+    }
+  };
   
   useEffect(() => {
     if (screen === 'summary' && latestUpload.image) {
-      setAiSummary(''); 
-      fetchAISummary(); 
+      setAiSummary('');
+      fetchAISummary(); // This causes the error if fetchAISummary is defined below
     }
   }, [screen]);
+  
   
   const getLocation = () => {
     if (!navigator.geolocation) {
@@ -109,7 +185,7 @@ export default function HomeScreen() {
     }
   
     try {
-      const response = await fetch('https://f5f7-183-82-237-45.ngrok-free.app/api/auth/login', {
+      const response = await fetch('https://1a88-183-82-237-45.ngrok-free.app/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -191,18 +267,9 @@ export default function HomeScreen() {
       Alert.alert('Error', 'Passwords do not match');
       return;
     }
-  
-    // function LocationPicker({ setPosition }: { setPosition: (pos: [number, number]) => void }) {
-    //   useMapEvents({
-    //     click(e) {
-    //       setPosition([e.latlng.lat, e.latlng.lng]);
-    //     },
-    //   });
-    //   return null;
-    // }
     
     try {
-      const response = await fetch('https://f5f7-183-82-237-45.ngrok-free.app/api/auth/signup', {
+      const response = await fetch('https://1a88-183-82-237-45.ngrok-free.app/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -295,31 +362,30 @@ export default function HomeScreen() {
       setLocation("Location not found");
     }
   };
-  const sendOtpToEmail = () => {
-    if (!resetEmail.includes('@')) {
-      Alert.alert('Error', 'Enter a valid email address');
-      return;
+  const sendOtpToEmail = async () => {
+    if (!email.includes('@')) {
+      return Alert.alert('Invalid Email', 'Please enter a valid email address');
     }
-    
-    const generated = Math.floor(100000 + Math.random() * 900000).toString();
-    setGeneratedOtp(generated);
-    Alert.alert('OTP Sent', `Your OTP is: ${generated}`); 
-    setScreen('otpVerification');
+  
+    try {
+      const res = await fetch('https://1a88-183-82-237-45.ngrok-free.app/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+  
+      const data = await res.json();
+      if (!res.ok) return Alert.alert('Error', data.error || 'Something went wrong');
+  
+      Alert.alert('OTP Sent ✅', 'Check your email for the OTP');
+    } catch (err) {
+      Alert.alert('Error', 'Server error');
+    }
   };
+  
+  
   const MapContainerComponent = ({ position, setPosition }: { position: [number, number] | null, setPosition: (pos: [number, number]) => void }) => {
     return (
-      // <MapContainer
-      //   center={position ?? [22.9734, 78.6569]}
-      //   zoom={5}
-      //   style={{ height: '100%', width: '100%' }}
-      // >
-      //   <TileLayer
-      //     attribution='&copy; OpenStreetMap contributors'
-      //     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      //   />
-      //   <LocationPicker setPosition={setPosition} />
-      //   {position && <Marker position={position} />}
-      // </MapContainer>
       <MapView
         style={{ height: 200, width: '100%' }}
         initialRegion={{
@@ -357,14 +423,25 @@ export default function HomeScreen() {
   
   
   // Function to verify OTP
-  const verifyOtp = () => {
-    if (otp === generatedOtp) {
-      Alert.alert('Success', 'OTP verified');
-      setScreen('resetPassword');
-    } else {
-      Alert.alert('Error', 'Invalid OTP');
+  const verifyOTP = async () => {
+    try {
+      const res = await fetch('https://1a88-183-82-237-45.ngrok-free.app/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp }),
+      });
+  
+      const data = await res.json();
+      if (!res.ok) return Alert.alert('Error', data.error || 'Invalid OTP');
+  
+      Alert.alert('Verified!', 'OTP verified successfully');
+      setScreen('resetPassword'); // ✅ transition to reset screen
+    } catch (err) {
+      Alert.alert('Error', 'Server error');
     }
   };
+  
+
   const handleSummaryClick = () => {
     setLatestUpload({
       image: image,
@@ -375,85 +452,6 @@ export default function HomeScreen() {
     });    
     setScreen('summary');
   };
-  
-  
-  // Function to reset password
-  const resetUserPassword = () => {
-    if (newPassword.length < 8 || !/\d/.test(newPassword)) {
-      Alert.alert('Error', 'Password must be at least 8 characters long and contain at least one number');
-      return;
-    }
-  
-    Alert.alert('Success', 'Password reset successful');
-    setScreen('login'); // Redirect to login
-  };
-  
-
-  const convertUriIfNeeded = async (uri: string): Promise<string> => {
-    if (uri && uri.startsWith('content://')) {
-      const newPath = FileSystem.cacheDirectory + 'converted.jpg';
-      await FileSystem.copyAsync({ from: uri, to: newPath });
-      return newPath;
-    }
-    return uri;
-  };
-
-  const fetchAISummary = async () => {
-    try {
-      console.log('Starting fetchAISummary');
-      console.log('Original Image URI:', latestUpload.image);
-  
-      if (!latestUpload.image) {
-        throw new Error("No image found to process.");
-      }
-      const imageUri = await convertUriIfNeeded(latestUpload.image);
-      
-      console.log('Processed Image URI:', imageUri);
-  
-      const formData = new FormData();
-      formData.append('image', {
-        uri: imageUri,
-        name: 'photo.jpg',
-        type: 'image/jpeg',
-      } as any);
-  
-      console.log('FormData created, making request...');
-  
-      const aiResponse = await fetch('https://f5f7-183-82-237-45.ngrok-free.app/analyze', {
-        method: 'POST',
-        body: formData,
-      });
-  
-      console.log('Response status:', aiResponse.status);
-  
-      const contentType = aiResponse.headers.get("content-type");
-      console.log('Content-Type:', contentType);
-  
-      if (!aiResponse.ok) {
-        const errorText = await aiResponse.text();
-        console.error('Server Error:', errorText);
-        throw new Error(`Server Error: ${errorText}`);
-      }
-  
-      if (contentType && contentType.includes("application/json")) {
-        const data = await aiResponse.json();
-        console.log('AI Response:', data);
-        setAiSummary(data.summary || data.caption || '[No summary returned]');
-      } else {
-        const rawText = await aiResponse.text();
-        console.log('Unexpected response:', rawText);
-        throw new Error(`Unexpected response format: ${rawText}`);
-      }
-  
-    } catch (err: unknown) {
-      if (err instanceof Error) {
-        setAiSummary('[Error generating summary: ' + err.message + ']');
-      } else {
-        setAiSummary('[Error generating summary: Unknown error]');
-      }
-    }
-  };
-  
   
   const handleSummaryNavigation = () => {
     if (!image || !address) {
@@ -497,7 +495,7 @@ export default function HomeScreen() {
   
     try {
       // Perform the fetch request with FormData
-      const res = await fetch('https://f5f7-183-82-237-45.ngrok-free.app/api/upload/new', {
+      const res = await fetch('https://1a88-183-82-237-45.ngrok-free.app/api/upload/new', {
         method: 'POST',
         body: formData, // body should be the formData object
       });
@@ -529,6 +527,48 @@ export default function HomeScreen() {
       }
     }
   };
+  const handleNewReport = (isUrgent: boolean) => {
+    setTotalReports(prev => prev + 1);
+    setPendingReports(prev => prev + 1);  // Mark as pending by default
+  
+    if (isUrgent) {
+      setUrgentReports(prev => prev + 1); // Only increment if the report is urgent
+    }
+  };
+
+  // Function to reset password
+  const resetPassword = async () => {
+    if (newPassword.length < 8 || !/\d/.test(newPassword)) {
+      return Alert.alert(
+        'Invalid Password',
+        'Password must be at least 8 characters long and contain a number.'
+      );
+    }
+
+    if (newPassword !== confirmPassword) {
+      return Alert.alert('Password Mismatch', 'Passwords do not match.');
+    }
+
+    try {
+      const res = await fetch('https://1a88-183-82-237-45.ngrok-free.app/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, newPassword }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return Alert.alert('Error', data.error || 'Failed to reset password.');
+      }
+
+      Alert.alert('Success', 'Password updated successfully.');
+      setScreen('login');
+    } catch (error) {
+      Alert.alert('Error', 'Server error. Please try again later.');
+    }
+  };
+ 
   
   
   
@@ -537,8 +577,11 @@ export default function HomeScreen() {
       {screen === 'home' && (
         <ImageBackground source={require('@/assets/images/potholeclick.png')} style={styles.background}>
           <View style={styles.HomeContainer}>
-            <Animated.View style={[styles.container, { opacity: logoOpacity }]}>
-              <Animated.Image source={require('@/assets/images/logo.png')} style={[styles.logo, { opacity: logoOpacity }]} />
+            <Animated.View style={[styles.homeInnerContainer, { opacity: logoOpacity }]}>
+              <Animated.Image
+                source={require('@/assets/images/logo.png')}
+                style={[styles.logo, { opacity: logoOpacity }]}
+              />
               <Animated.View style={{ opacity: textOpacity, alignItems: 'center' }}>
                 <ThemedText type="title" style={styles.title}>Safe Street</ThemedText>
                 <ThemedText type="subtitle" style={styles.tagline}>Making roads safer, one step at a time</ThemedText>
@@ -608,59 +651,77 @@ export default function HomeScreen() {
         </View>
       )}
       {screen === 'forgotPassword' && (
-        <View style={styles.AuthContainer}>
-          <ThemedText type="title" style={styles.authTitle}>Forgot Password</ThemedText>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your email"
-            value={resetEmail}
-            onChangeText={setResetEmail}
-            keyboardType="email-address"
-          />
-          <TouchableOpacity style={styles.submitButton} onPress={sendOtpToEmail}>
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Send OTP</ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('login')}>
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
-          </TouchableOpacity>
+        <View style={styles.forgotPasswordcontainer}>
+          <View style={styles.forgotPasswordcard}>
+            <Text style={styles.title}>🔐 Enter Your Email</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="example@mail.com"
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+            <TouchableOpacity style={styles.submitButton} onPress={sendOtpToEmail}>
+              <Text style={styles.buttonText}>Send OTP</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('login')}>
+              <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
       {screen === 'otpVerification' && (
-        <View style={styles.AuthContainer}>
-          <ThemedText type="title" style={styles.authTitle}>Enter OTP</ThemedText>
+        <View style={styles.container}>
+        <View style={styles.card}>
+          <Text style={styles.label}>Enter OTP sent to:</Text>
+          <Text style={styles.email}>{email}</Text>
           <TextInput
             style={styles.input}
             placeholder="Enter OTP"
-            value={otp}
+            keyboardType="numeric"
             onChangeText={setOtp}
-            keyboardType="number-pad"
           />
-          <TouchableOpacity style={styles.submitButton} onPress={verifyOtp}>
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Verify OTP</ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('forgotPassword')}>
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
+          <TouchableOpacity style={styles.button} onPress={verifyOTP}>
+            <Text style={styles.buttonText}>Verify OTP</Text>
           </TouchableOpacity>
         </View>
+      </View>
+  
       )}
       {screen === 'resetPassword' && (
-        <View style={styles.AuthContainer}>
-          <ThemedText type="title" style={styles.authTitle}>Reset Password</ThemedText>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter new password"
-            value={newPassword}
-            onChangeText={setNewPassword}
-            secureTextEntry
-          />
-          <TouchableOpacity style={styles.submitButton} onPress={resetUserPassword}>
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Reset Password</ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('login')}>
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
-          </TouchableOpacity>
+        <View style={styles.container}>
+          <View style={styles.card}>
+            <Text style={styles.title}>Reset Password</Text>
+
+            <Text style={styles.label}>New Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="New Password"
+              secureTextEntry={!showPassword}
+              onChangeText={setNewPassword}
+            />
+
+            <Text style={styles.label}>Confirm Password</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm Password"
+              secureTextEntry={!showPassword}
+              onChangeText={setConfirmPassword}
+            />
+
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              <Text style={styles.toggle}>
+                {showPassword ? 'Hide' : 'Show'} Password
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.button} onPress={resetPassword}>
+              <Text style={styles.buttonText}>Reset Password</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
+
       {screen === 'signup' && (
         <View style={styles.SignupContainer}>
           <ThemedText type="title" style={styles.authTitle}>
@@ -687,35 +748,37 @@ export default function HomeScreen() {
       {screen === 'roleSelection' && (
         <View style={styles.roleContainer}>
           <ThemedText type="title" style={styles.authTitle}>Select Your Role</ThemedText>
+
           <View style={styles.buttonContainer}>
-          <TouchableOpacity 
-            style={styles.roleButton} 
-            onPress={async () => { 
-              await AsyncStorage.setItem('selectedRole', 'Worker'); 
-              setSelectedRole('Worker'); 
-              setScreen('auth'); 
-            }}
-          >
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Worker</ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.roleButton} 
-            onPress={async () => { 
-              await AsyncStorage.setItem('selectedRole', 'Supervisor'); 
-              setSelectedRole('Supervisor'); 
-              setScreen('auth'); 
-            }}
-          >
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Supervisor</ThemedText>
-          </TouchableOpacity>
-          </View>
-          <View style={styles.backButtonContainer}>
-            <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('home')}>
-              <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
+            <TouchableOpacity 
+              style={styles.roleButton} 
+              onPress={async () => { 
+                await AsyncStorage.setItem('selectedRole', 'Worker'); 
+                setSelectedRole('Worker'); 
+                setScreen('auth'); 
+              }}
+            >
+              <ThemedText type="defaultSemiBold" style={styles.buttonText}>Worker</ThemedText>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.roleButton} 
+              onPress={async () => { 
+                await AsyncStorage.setItem('selectedRole', 'Supervisor'); 
+                setSelectedRole('Supervisor'); 
+                setScreen('auth'); 
+              }}
+            >
+              <ThemedText type="defaultSemiBold" style={styles.buttonText}>Supervisor</ThemedText>
             </TouchableOpacity>
           </View>
+
+          <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('home')}>
+            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
+          </TouchableOpacity>
         </View>
       )}
+
       {screen === 'workerDashboard' && (
         <View style={styles.workerDashboardContainer}>
           <ThemedText type="title" style={styles.authTitle}>Worker Dashboard</ThemedText>
@@ -884,27 +947,105 @@ export default function HomeScreen() {
 
       {/* Supervisor Dashboard */}
       {screen === 'supervisorDashboard' && (
-        <View style={styles.supervisorDashboardContainer}>
-          <ThemedText type="title" style={styles.authTitle}>Supervisor Dashboard</ThemedText>
-          {latestUpload.image ? (
-            <View>
-              <Image source={{ uri: latestUpload.image }} style={styles.previewImage} />
-              <Text style={styles.locationText}>Latest Upload: {latestUpload.location}</Text>
-              <TouchableOpacity 
-                style={styles.openButton} 
-                onPress={() => setScreen('supervisorView')}
-              >
-                <ThemedText type="defaultSemiBold" style={styles.buttonText}>Open</ThemedText>
-              </TouchableOpacity>
+        <ImageBackground
+          source={require('@/assets/images/potholeclick.png')}
+          style={styles.background}
+        >
+          <ScrollView
+            contentContainerStyle={styles.supervisorDashboardContainer}
+            keyboardShouldPersistTaps="handled"
+          >
+            <ThemedText type="title" style={styles.authTitle}>
+              Supervisor Dashboard
+            </ThemedText>
+
+            {/* Summary Cards */}
+            <View style={styles.cardRow}>
+              <View style={[styles.dashboardCard, { backgroundColor: '#007bff' }]}>
+                <ThemedText type="defaultSemiBold" style={styles.cardTitle}>Total Reports</ThemedText>
+                <ThemedText style={styles.cardValue}>{totalReports}</ThemedText>
+              </View>
+
+              <View style={[styles.dashboardCard, { backgroundColor: '#28a745' }]}>
+                <ThemedText type="defaultSemiBold" style={styles.cardTitle}>Pending</ThemedText>
+                <ThemedText style={styles.cardValue}>{pendingReports}</ThemedText>
+              </View>
+
+              <View style={[styles.dashboardCard, { backgroundColor: '#dc3545' }]}>
+                <ThemedText type="defaultSemiBold" style={styles.cardTitle}>Urgent</ThemedText>
+                <ThemedText style={styles.cardValue}>{urgentReports}</ThemedText>
+              </View>
             </View>
-          ) : (
-            <Text>No uploads available</Text>
-          )}
-          <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('roleSelection')}>
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
-          </TouchableOpacity>
-        </View>
+
+            {/* Map Container */}
+            <View style={styles.mapContainer}>
+              <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Map View</ThemedText>
+              <View style={{ height: 200, borderRadius: 10, overflow: 'hidden' }}>
+                <MapView
+                  style={{ flex: 1 }}
+                  initialRegion={{
+                    latitude: 37.78825,
+                    longitude: -122.4324,
+                    latitudeDelta: 0.0922,
+                    longitudeDelta: 0.0421,
+                  }}
+                >
+                  <Marker coordinate={{ latitude: 37.78825, longitude: -122.4324 }} />
+                </MapView>
+              </View>
+            </View>
+
+            {/* Notifications and Charts */}
+            <View style={styles.infoRow}>
+              <View style={styles.notificationBox}>
+                <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Notifications</ThemedText>
+                {/* <Text>23 min - Detailed summary details</Text>
+                <Text>23 min - Severity in classification</Text>
+                <Text>15:40 - Worker uploaded new image</Text> */}
+              </View>
+              <View style={styles.chartBox}>
+                <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Statistics</ThemedText>
+                <LineChart
+                  data={{
+                    labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+                    datasets: [
+                      {
+                        data: [0, 1, 3, 2, 4, 6],
+                      },
+                    ],
+                  }}
+                  width={Dimensions.get("window").width * 0.9}
+                  height={220}
+                  chartConfig={{
+                    backgroundColor: "#ffffff",
+                    backgroundGradientFrom: "#ffffff",
+                    backgroundGradientTo: "#ffffff",
+                    decimalPlaces: 0,
+                    color: (opacity = 1) => `rgba(0, 123, 255, ${opacity})`,
+                    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                    style: { borderRadius: 16 },
+                    propsForDots: {
+                      r: "5",
+                      strokeWidth: "2",
+                      stroke: "#007bff",
+                    },
+                  }}
+                  style={{
+                    borderRadius: 16,
+                  }}
+                />
+              </View>
+            </View>
+
+            {/* Back Button */}
+            <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('roleSelection')}>
+              <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
+            </TouchableOpacity>
+          </ScrollView>
+        </ImageBackground>
       )}
+
+
       {/* Supervisor View Page - Displays Image & Location */}
       {screen === 'supervisorView' && latestUpload.image && (
         <View style={styles.supervisorViewContainer}>
@@ -925,21 +1066,16 @@ export default function HomeScreen() {
 }
 const styles = StyleSheet.create({
   background: { flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' },
-  container: { width: '60%', height: '50%', padding: 20, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   authContainer: { width: '50%', height: '50%', padding: 20, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   authButton: { backgroundColor: 'green', width: 120, height: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
   authBackButton: { marginTop: 20, backgroundColor: 'red', paddingVertical: 10, paddingHorizontal: 40, borderRadius: 8, alignSelf: 'center' },
-  authTitle: {fontSize: 28,fontWeight: 'bold', color: 'white', textAlign: 'center',},
   roleButton: { backgroundColor: 'green', width: 140, height: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  input: { width: '80%', height: 40, backgroundColor: '#fff', borderRadius: 8, paddingHorizontal: 15, marginVertical: 8 },
   submitButton: { marginTop: 10, backgroundColor: 'green', paddingVertical: 10, paddingHorizontal: 40, borderRadius: 8 },
-  errorText: { color: 'white', marginBottom: 10, fontSize: 14 }, // 🔹 Updated to white
+  errorText: { color: 'white', marginBottom: 10, fontSize: 14 }, 
   startButton: { marginTop: 20, backgroundColor: 'green', paddingVertical: 12, paddingHorizontal: 40, borderRadius: 8 },
   backButton: { marginTop: 20, backgroundColor: 'red', paddingVertical: 8, paddingHorizontal: 30, borderRadius: 6 },
-  tagline: { fontSize: 16, color: 'white', marginTop: 5, textAlign: 'center' }, // 🔹 Updated to white
-  title: { fontSize: 28, fontWeight: 'bold', color: 'white', textAlign: 'center' }, // 🔹 Updated to white
-  buttonText: { color: 'white', fontSize: 16 }, // 🔹 Ensuring all button text is white
-  locationText: { marginTop: 10, fontSize: 16, color: 'white' }, // 🔹 Updated to white
+  tagline: { fontSize: 16, color: 'white', marginTop: 5, textAlign: 'center' },
+  locationText: { marginTop: 10, fontSize: 16, color: 'white' }, 
   previewImage: { width: 200, height: 200, marginVertical: 10 },
   removeButton: { marginTop: 10, backgroundColor: 'blue', paddingVertical: 10, paddingHorizontal: 40, borderRadius: 8, alignItems: 'center' },
   uploadButton: { marginTop: 10, backgroundColor: 'green', paddingVertical: 10, paddingHorizontal: 40, borderRadius: 8, alignItems: 'center' },
@@ -952,7 +1088,6 @@ const styles = StyleSheet.create({
   SignupContainer: {width: '90%', maxWidth: 400, padding: 20, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
   workerDashboardContainer: {width: '90%', maxWidth: 400, padding: 20, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
   imageUploadContainer: {width: '90%', maxWidth: 400, padding: 20, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
-  supervisorDashboardContainer: {width: '90%', maxWidth: 400, padding: 20, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
   supervisorViewContainer: {width: '90%', maxWidth: 400, padding: 20, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
   linkText: {color: 'white'},
   overlay: {flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.4)', width: '100%', height: '100%',},
@@ -961,7 +1096,7 @@ const styles = StyleSheet.create({
   heading: {fontSize: 22,marginBottom: 16,textAlign: 'center',},
   manual_input: {borderWidth: 1,borderColor: '#ccc',borderRadius: 8,padding: 12,marginBottom: 16,color: '#000',},
   getLocationButton: { backgroundColor: '#16a34a',paddingVertical: 12,borderRadius: 8,alignItems: 'center', marginBottom: 16,},
-  mapContainer: {height: 300,width: '100%',borderRadius: 8, overflow: 'hidden', marginBottom: 16,},
+  mapContainer: {height: 400,width: 300,borderRadius: 8, overflow: 'hidden'},
   coordsText: {textAlign: 'center',fontSize: 14,marginBottom: 16,},
   manual_backButton: {backgroundColor: '#4b5563', paddingVertical: 12, borderRadius: 8, alignItems: 'center',},
   summaryText: {fontSize: 18,fontWeight: 'bold', color: '#007b8f', marginTop: 10, },
@@ -969,5 +1104,29 @@ const styles = StyleSheet.create({
   boldText: { fontWeight: 'bold', },
   backButtonContainer: { position: 'absolute', top: 20, left: 20, },
   buttonContainer: { flexDirection: 'column',justifyContent: 'center',alignItems: 'center',gap: 15,marginBottom: 20,},
+  supervisorDashboardContainer: { padding: 20, backgroundColor: '#f4f4f4', flexGrow: 1, width: '90%', maxWidth: 400, borderRadius: 15, alignItems: 'center', justifyContent: 'center',  shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
+  cardRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20,},
+  dashboardCard: { flex: 1, borderRadius: 12, padding: 15, marginHorizontal: 5,},
+  cardTitle: { color: '#fff', fontSize: 16,},
+  cardValue: {color: '#fff', fontSize: 24, fontWeight: 'bold', marginTop: 5,},
+  authTitle: { fontSize: 28, fontWeight: 'bold', marginBottom: 20, color: 'white', textAlign: 'center',},
+  placeholderBox: { height: 150, backgroundColor: '#e0e0e0', borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginTop: 10,},
+  infoRow: { flexDirection: 'column', justifyContent: 'flex-start',marginBottom: 10,},
+  notificationBox: { flex: 1, backgroundColor: '#fff', padding: 15, borderRadius: 12,  marginRight: 10,  elevation: 2,},
+  chartBox: {  flex: 1,  backgroundColor: '#fff', padding: 15, borderRadius: 12, marginLeft: 10, elevation: 2, },
+  sectionTitle: { fontSize: 18, marginBottom: 10, },
+  container: { padding: 24, backgroundColor: '#f3f4f6', alignItems: 'center',width: '60%', height: '50%',  borderRadius: 20, justifyContent: 'center',flex: 1},
+  card: {shadowColor: '#000',backgroundColor: 'rgba(255,255,255,0.05)', width: '100%', maxWidth: 400, shadowRadius: 10, padding: 24, borderRadius: 16,  elevation: 5,shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 },},
+  title: {marginBottom: 20,fontSize: 28, fontWeight: 'bold', color: 'white', textAlign: 'center', }, 
+  input: {borderColor: '#ccc',width: '100%', height: 50, paddingHorizontal: 50, marginVertical: 8,borderWidth: 1,marginBottom: 15,fontSize: 16,backgroundColor: 'white', borderRadius: 10, padding: 12, },
+  button: {borderRadius: 10,backgroundColor: '#10b981', padding: 16,},
+  buttonText: { fontSize: 16,textAlign: 'center',  color: 'white', fontWeight: 'bold',},
+  label: { color: '#ddd', marginBottom: 6,fontSize: 16 },
+  email: { fontSize: 14, marginBottom: 16, color: '#6b7280' },
+  toggle: { color: '#38bdf8', textAlign: 'right', marginBottom: 20,},
+  homeInnerContainer: {alignItems: 'center',justifyContent: 'center', width: '100%', padding: 20,},
+  loginContainer: {flex: 1,alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingTop: 60,},
+  forgotPasswordcontainer: {flex: 1,alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingTop: 60,},
+  forgotPasswordcard:{shadowColor: '#000',backgroundColor: 'rgba(0, 0, 0, 0.7)', width: '100%', maxWidth: 400, shadowRadius: 10, padding: 24, borderRadius: 16,  elevation: 5,shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 },},
+  
 });
-
