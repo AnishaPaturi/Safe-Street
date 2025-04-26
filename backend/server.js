@@ -106,25 +106,51 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 app.post('/analyze', upload.single('image'), async (req, res) => {
-  try {
-    const form = new FormData();
-    form.append('image', fs.createReadStream(req.file.path));
+    console.log("📸 Uploaded file:", req.file);
+  
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+  
+    try {
+      const form = new FormData();
 
-    const flaskURL = 'https://1a88-183-82-237-45.ngrok-free.app/analyze'; 
-
-    const response = await axios.post(flaskURL, form, {
-      headers: form.getHeaders(),
-    });
-
-    console.log('✅ Flask Response:', response.data);
-
-    fs.unlinkSync(req.file.path); // Clean up uploaded file
-    res.json(response.data);
-  } catch (err) {
-    console.error('🔥 Analyze error:', err.message);
-    res.status(500).json({ error: 'Failed to analyze image' });
-  }
+      form.append('image', fs.createReadStream(req.file.path));
+  
+      console.log("📤 Sending to Flask...");
+      const flaskURL = 'https://9f19-34-74-236-9.ngrok-free.app/analyze';
+      console.log("📡 Sending POST request to:", flaskURL);
+      
+      const response = await axios.post(flaskURL, form, {
+        headers: {
+          ...form.getHeaders(),
+          'Content-Type': 'multipart/form-data'
+        },
+      });
+      console.log('✅ Flask Response:', response.data);
+  
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error('Error deleting file:', err);
+      });
+      
+      res.json(response.data);
+    } catch (err) {
+      console.error('🔥 Analyze error:', err);
+      
+      // Clean up file even if error occurs
+      if (req.file?.path) {
+        fs.unlink(req.file.path, (err) => {
+          if (err) console.error('Error deleting file:', err);
+        });
+      }
+      
+      res.status(500).json({ 
+        error: 'Failed to analyze image',
+        details: err.message 
+      });
+    }
 });
+  
 
 
 const PORT = process.env.PORT || 5000;

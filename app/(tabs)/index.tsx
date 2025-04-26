@@ -68,6 +68,7 @@ export default function HomeScreen()
   const [pendingReports, setPendingReports] = useState(0);
   const [urgentReports, setUrgentReports] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
+  const [recentReports, setRecentReports] = useState<{ time: string; message: string }[]>([]);
 
  
   useEffect(() => {
@@ -93,15 +94,17 @@ export default function HomeScreen()
   };
   const fetchAISummary = async (): Promise<void> => {
     try {
-      console.log('Starting fetchAISummary');
+      console.log('🧠 Starting fetchAISummary');
       console.log('Original Image URI:', latestUpload.image);
   
       if (!latestUpload.image) {
-        throw new Error("No image found to process.");
+        Alert.alert("Error", "No image selected.");
+        return;
       }
+  
+      // Ensure URI is converted properly for file uploads
       const imageUri = await convertUriIfNeeded(latestUpload.image);
-      
-      console.log('Processed Image URI:', imageUri);
+      console.log('✅ Processed Image URI:', imageUri);
   
       const formData = new FormData();
       formData.append('image', {
@@ -110,40 +113,42 @@ export default function HomeScreen()
         type: 'image/jpeg',
       } as any);
   
-      console.log('FormData created, making request...');
+      console.log('📤 Sending request to Flask server...');
   
-      const aiResponse = await fetch('https://1a88-183-82-237-45.ngrok-free.app/analyze', {
+      const aiResponse = await fetch('https://b6ac-2409-40f0-125-c676-58b4-6022-a617-105b.ngrok-free.app/analyze', {
         method: 'POST',
         body: formData,
+        headers: {
+          Accept: 'application/json',
+          // ❌ Do NOT set 'Content-Type': it breaks boundary detection
+        },
       });
-  
-      console.log('Response status:', aiResponse.status);
+      console.log('📡 Calling Flask at:https://9f19-34-74-236-9.ngrok-free.app/analyze');
+      console.log('📥 Response status:', aiResponse.status);
   
       const contentType = aiResponse.headers.get("content-type");
-      console.log('Content-Type:', contentType);
+      console.log('📦 Content-Type:', contentType);
   
       if (!aiResponse.ok) {
         const errorText = await aiResponse.text();
-        console.error('Server Error:', errorText);
+        console.error('🔥 Server Error:', errorText);
         throw new Error(`Server Error: ${errorText}`);
       }
   
       if (contentType && contentType.includes("application/json")) {
         const data = await aiResponse.json();
-        console.log('AI Response:', data);
+        console.log('✅ AI Response:', data);
         setAiSummary(data.summary || data.caption || '[No summary returned]');
       } else {
         const rawText = await aiResponse.text();
-        console.log('Unexpected response:', rawText);
+        console.warn('⚠️ Unexpected response:', rawText);
         throw new Error(`Unexpected response format: ${rawText}`);
       }
   
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setAiSummary('[Error generating summary: ' + err.message + ']');
-      } else {
-        setAiSummary('[Error generating summary: Unknown error]');
-      }
+      const msg = err instanceof Error ? err.message : 'Unknown error';
+      console.error('⚠️ AI Summary Fetch Error:', msg);
+      setAiSummary('[Error generating summary: ' + msg + ']');
     }
   };
   
@@ -153,6 +158,31 @@ export default function HomeScreen()
       fetchAISummary(); // This causes the error if fetchAISummary is defined below
     }
   }, [screen]);
+  
+  useEffect(() => {
+    const testNgrok = async () => {
+      try {
+        const formData = new FormData(); // Intentionally empty — will return "no image"
+        const res = await fetch('https://9f19-34-74-236-9.ngrok-free.app/analyze', {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+          },
+          body: formData,
+        });
+  
+        const json = await res.json();
+        console.log('✅ Ngrok test success:', json);
+        Alert.alert('Success 🎉', JSON.stringify(json));
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : JSON.stringify(err);
+        console.error('❌ Ngrok test fetch error:', msg);
+        Alert.alert('Test Failed ❌', msg);
+      }
+    };
+  
+    testNgrok();
+  }, []);
   
   
   const getLocation = () => {
@@ -185,7 +215,7 @@ export default function HomeScreen()
     }
   
     try {
-      const response = await fetch('https://1a88-183-82-237-45.ngrok-free.app/api/auth/login', {
+      const response = await fetch('https://b6ac-2409-40f0-125-c676-58b4-6022-a617-105b.ngrok-free.app/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -269,7 +299,7 @@ export default function HomeScreen()
     }
     
     try {
-      const response = await fetch('https://1a88-183-82-237-45.ngrok-free.app/api/auth/signup', {
+      const response = await fetch('https://b6ac-2409-40f0-125-c676-58b4-6022-a617-105b.ngrok-free.app/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -368,7 +398,7 @@ export default function HomeScreen()
     }
   
     try {
-      const res = await fetch('https://1a88-183-82-237-45.ngrok-free.app/api/auth/send-otp', {
+      const res = await fetch('https://b6ac-2409-40f0-125-c676-58b4-6022-a617-105b.ngrok-free.app/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -425,7 +455,7 @@ export default function HomeScreen()
   // Function to verify OTP
   const verifyOTP = async () => {
     try {
-      const res = await fetch('https://1a88-183-82-237-45.ngrok-free.app/api/auth/verify-otp', {
+      const res = await fetch('https://b6ac-2409-40f0-125-c676-58b4-6022-a617-105b.ngrok-free.app/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp }),
@@ -475,10 +505,8 @@ export default function HomeScreen()
       formData.append('userId', 'anishapaturi481');
   
       // Handle location being null
-      const location = latestUpload.location ? latestUpload.location : ''; // fallback to an empty string or a default value
-      formData.append('location', location);
-  
-      formData.append('summary', aiSummary);
+      formData.append('location', latestUpload.location || '');
+      formData.append('summary', aiSummary || '');
   
       // Ensure the image object is correctly formatted
       if (latestUpload.image) {
@@ -487,6 +515,9 @@ export default function HomeScreen()
           name: 'upload.jpg',
           type: 'image/jpeg',
         } as any); // Use `as any` to cast it to an acceptable type if necessary
+      } else {
+        Alert.alert("Missing Image", "No image to upload.");
+        return;
       }
     } catch (error) {
       console.error('Error while appending data to FormData:', error);
@@ -494,8 +525,18 @@ export default function HomeScreen()
     }
   
     try {
+      if (!latestUpload.location || !aiSummary || !latestUpload.image) {
+        Alert.alert("Upload Error", "Missing one or more required fields.");
+        return;
+      }
+    
+      console.log("Uploading with:");
+      console.log("userId:", 'anishapaturi481');
+      console.log("location:", latestUpload.location);
+      console.log("summary:", aiSummary);
+      console.log("image:", latestUpload.image);
       // Perform the fetch request with FormData
-      const res = await fetch('https://1a88-183-82-237-45.ngrok-free.app/api/upload/new', {
+      const res = await fetch('https://b6ac-2409-40f0-125-c676-58b4-6022-a617-105b.ngrok-free.app/api/upload/new', {
         method: 'POST',
         body: formData, // body should be the formData object
       });
@@ -515,18 +556,27 @@ export default function HomeScreen()
   
       // If everything goes well
       Alert.alert("Success", "Upload sent to Supervisor");
-      setScreen('workerDashboard');
-    } catch (err: unknown) {
-      // Type the error as an instance of Error
-      if (err instanceof Error) {
-        console.error("Upload Error:", err);
-        Alert.alert("Upload Failed", err.message);
-      } else {
-        console.error("Unknown error:", err);
-        Alert.alert("Upload Failed", "An unknown error occurred");
+
+      // ✅ Update recent reports
+      const newReport = {
+        time: new Date().toLocaleTimeString(),
+        message: aiSummary || '[No summary]',
+      };
+      
+      setRecentReports((prev) => [newReport, ...prev.slice(0, 4)]);
+
+        setScreen('workerDashboard');
+      } catch (err: unknown) {
+        // Type the error as an instance of Error
+        if (err instanceof Error) {
+          console.error("Upload Error:", err);
+          Alert.alert("Upload Failed", err.message);
+        } else {
+          console.error("Unknown error:", err);
+          Alert.alert("Upload Failed", "An unknown error occurred");
+        }
       }
-    }
-  };
+    };
   const handleNewReport = (isUrgent: boolean) => {
     setTotalReports(prev => prev + 1);
     setPendingReports(prev => prev + 1);  // Mark as pending by default
@@ -550,7 +600,7 @@ export default function HomeScreen()
     }
 
     try {
-      const res = await fetch('https://1a88-183-82-237-45.ngrok-free.app/api/auth/reset-password', {
+      const res = await fetch('https://b6ac-2409-40f0-125-c676-58b4-6022-a617-105b.ngrok-free.app/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, newPassword }),
@@ -995,47 +1045,30 @@ export default function HomeScreen()
               </View>
             </View>
 
-            {/* Notifications and Charts */}
-            <View style={styles.infoRow}>
-              <View style={styles.notificationBox}>
-                <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Notifications</ThemedText>
-                {/* <Text>23 min - Detailed summary details</Text>
-                <Text>23 min - Severity in classification</Text>
-                <Text>15:40 - Worker uploaded new image</Text> */}
+            {/* Recent Reports */}
+            {/* <View style={styles.recentReportsBox}>
+              <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Recent Updated Reports</ThemedText>
+              <View style={styles.reportItem}>
+                <ThemedText>15:40 - Report #324 updated: Severity changed to High</ThemedText>
               </View>
-              <View style={styles.chartBox}>
-                <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Statistics</ThemedText>
-                <LineChart
-                  data={{
-                    labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-                    datasets: [
-                      {
-                        data: [0, 1, 3, 2, 4, 6],
-                      },
-                    ],
-                  }}
-                  width={Dimensions.get("window").width * 0.9}
-                  height={220}
-                  chartConfig={{
-                    backgroundColor: "#ffffff",
-                    backgroundGradientFrom: "#ffffff",
-                    backgroundGradientTo: "#ffffff",
-                    decimalPlaces: 0,
-                    color: (opacity = 1) => `rgba(0, 123, 255, ${opacity})`,
-                    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                    style: { borderRadius: 16 },
-                    propsForDots: {
-                      r: "5",
-                      strokeWidth: "2",
-                      stroke: "#007bff",
-                    },
-                  }}
-                  style={{
-                    borderRadius: 16,
-                  }}
-                />
+              <View style={styles.reportItem}>
+                <ThemedText>14:10 - Report #318 updated: Marked as Resolved</ThemedText>
               </View>
-            </View>
+              <View style={styles.reportItem}>
+                <ThemedText>13:22 - Report #310 updated: Assigned to Worker #45</ThemedText>
+              </View>
+            </View> */}
+            {recentReports.length > 0 && (
+              <View style={styles.recentReportsBox}>
+                <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Recent Updated Reports</ThemedText>
+                {recentReports.map((report, index) => (
+                  <View key={index} style={styles.reportItem}>
+                    <ThemedText>{report.time} - {report.message}</ThemedText>
+                  </View>
+                ))}
+              </View>
+            )}
+
 
             {/* Back Button */}
             <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('roleSelection')}>
@@ -1044,6 +1077,7 @@ export default function HomeScreen()
           </ScrollView>
         </ImageBackground>
       )}
+
 
 
       {/* Supervisor View Page - Displays Image & Location */}
@@ -1128,5 +1162,6 @@ const styles = StyleSheet.create({
   loginContainer: {flex: 1,alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingTop: 60,},
   forgotPasswordcontainer: {flex: 1,alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingTop: 60,},
   forgotPasswordcard:{shadowColor: '#000',backgroundColor: 'rgba(0, 0, 0, 0.7)', width: '100%', maxWidth: 400, shadowRadius: 10, padding: 24, borderRadius: 16,  elevation: 5,shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 },},
-  
+  recentReportsBox: { backgroundColor: 'rgba(255, 255, 255, 0.9)', padding: 15, marginVertical: 20,marginHorizontal: 10, borderRadius: 10, shadowColor: '#000',  shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3, },
+  reportItem: { paddingVertical: 6, borderBottomColor: '#ccc', borderBottomWidth: 1,},
 });
