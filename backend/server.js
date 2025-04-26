@@ -118,7 +118,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
       form.append('image', fs.createReadStream(req.file.path));
   
       console.log("📤 Sending to Flask...");
-      const flaskURL = 'https://9f19-34-74-236-9.ngrok-free.app/analyze';
+      const flaskURL = 'https://aa1f-34-106-205-175.ngrok-free.app/analyze';
       console.log("📡 Sending POST request to:", flaskURL);
       
       const response = await axios.post(flaskURL, form, {

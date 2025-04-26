@@ -115,7 +115,7 @@ export default function HomeScreen()
   
       console.log('📤 Sending request to Flask server...');
   
-      const aiResponse = await fetch('https://b6ac-2409-40f0-125-c676-58b4-6022-a617-105b.ngrok-free.app/analyze', {
+      const aiResponse = await fetch('https://c8d2-183-82-237-45.ngrok-free.app/analyze', {
         method: 'POST',
         body: formData,
         headers: {
@@ -123,7 +123,7 @@ export default function HomeScreen()
           // ❌ Do NOT set 'Content-Type': it breaks boundary detection
         },
       });
-      console.log('📡 Calling Flask at:https://9f19-34-74-236-9.ngrok-free.app/analyze');
+      console.log('📡 Calling Flask at:"https://c8d2-183-82-237-45.ngrok-free.app/analyze');
       console.log('📥 Response status:', aiResponse.status);
   
       const contentType = aiResponse.headers.get("content-type");
@@ -159,30 +159,30 @@ export default function HomeScreen()
     }
   }, [screen]);
   
-  useEffect(() => {
-    const testNgrok = async () => {
-      try {
-        const formData = new FormData(); // Intentionally empty — will return "no image"
-        const res = await fetch('https://9f19-34-74-236-9.ngrok-free.app/analyze', {
-          method: 'POST',
-          headers: {
-            Accept: 'application/json',
-          },
-          body: formData,
-        });
+  // useEffect(() => {
+  //   const testNgrok = async () => {
+  //     try {
+  //       const formData = new FormData(); // Intentionally empty — will return "no image"
+  //       const res = await fetch('https://aa1f-34-106-205-175.ngrok-free.app/analyze', {
+  //         method: 'POST',
+  //         headers: {
+  //           Accept: 'application/json',
+  //         },
+  //         body: formData,
+  //       });
   
-        const json = await res.json();
-        console.log('✅ Ngrok test success:', json);
-        Alert.alert('Success 🎉', JSON.stringify(json));
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : JSON.stringify(err);
-        console.error('❌ Ngrok test fetch error:', msg);
-        Alert.alert('Test Failed ❌', msg);
-      }
-    };
+  //       const json = await res.json();
+  //       console.log('✅ Ngrok test success:', json);
+  //       Alert.alert('Success 🎉', JSON.stringify(json));
+  //     } catch (err) {
+  //       const msg = err instanceof Error ? err.message : JSON.stringify(err);
+  //       console.error('❌ Ngrok test fetch error:', msg);
+  //       Alert.alert('Test Failed ❌', msg);
+  //     }
+  //   };
   
-    testNgrok();
-  }, []);
+  //   testNgrok();
+  // }, []);
   
   
   const getLocation = () => {
@@ -215,7 +215,7 @@ export default function HomeScreen()
     }
   
     try {
-      const response = await fetch('https://b6ac-2409-40f0-125-c676-58b4-6022-a617-105b.ngrok-free.app/api/auth/login', {
+      const response = await fetch('https://c8d2-183-82-237-45.ngrok-free.app/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -299,7 +299,7 @@ export default function HomeScreen()
     }
     
     try {
-      const response = await fetch('https://b6ac-2409-40f0-125-c676-58b4-6022-a617-105b.ngrok-free.app/api/auth/signup', {
+      const response = await fetch('https://c8d2-183-82-237-45.ngrok-free.app/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -398,7 +398,7 @@ export default function HomeScreen()
     }
   
     try {
-      const res = await fetch('https://b6ac-2409-40f0-125-c676-58b4-6022-a617-105b.ngrok-free.app/api/auth/send-otp', {
+      const res = await fetch('https://c8d2-183-82-237-45.ngrok-free.app/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -455,7 +455,7 @@ export default function HomeScreen()
   // Function to verify OTP
   const verifyOTP = async () => {
     try {
-      const res = await fetch('https://b6ac-2409-40f0-125-c676-58b4-6022-a617-105b.ngrok-free.app/api/auth/verify-otp', {
+      const res = await fetch('https://c8d2-183-82-237-45.ngrok-free.app/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp }),
@@ -536,7 +536,7 @@ export default function HomeScreen()
       console.log("summary:", aiSummary);
       console.log("image:", latestUpload.image);
       // Perform the fetch request with FormData
-      const res = await fetch('https://b6ac-2409-40f0-125-c676-58b4-6022-a617-105b.ngrok-free.app/api/upload/new', {
+      const res = await fetch('https://c8d2-183-82-237-45.ngrok-free.app/api/upload/new', {
         method: 'POST',
         body: formData, // body should be the formData object
       });
@@ -600,7 +600,7 @@ export default function HomeScreen()
     }
 
     try {
-      const res = await fetch('https://b6ac-2409-40f0-125-c676-58b4-6022-a617-105b.ngrok-free.app/api/auth/reset-password', {
+      const res = await fetch('https://c8d2-183-82-237-45.ngrok-free.app/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, newPassword }),
