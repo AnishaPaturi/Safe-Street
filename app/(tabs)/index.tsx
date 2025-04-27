@@ -69,6 +69,10 @@ export default function HomeScreen()
   const [urgentReports, setUrgentReports] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [recentReports, setRecentReports] = useState<{ time: string; message: string }[]>([]);
+  const [damageType, setDamageType] = useState('');
+  const [severity, setSeverity] = useState('');
+  const [priority, setPriority] = useState('');
+  const [message, setMessage] = useState('');
 
  
   useEffect(() => {
@@ -94,61 +98,65 @@ export default function HomeScreen()
   };
   const fetchAISummary = async (): Promise<void> => {
     try {
-      console.log('🧠 Starting fetchAISummary');
-      console.log('Original Image URI:', latestUpload.image);
-  
-      if (!latestUpload.image) {
-        Alert.alert("Error", "No image selected.");
-        return;
-      }
-  
-      // Ensure URI is converted properly for file uploads
-      const imageUri = await convertUriIfNeeded(latestUpload.image);
-      console.log('✅ Processed Image URI:', imageUri);
-  
-      const formData = new FormData();
-      formData.append('image', {
-        uri: imageUri,
-        name: 'photo.jpg',
-        type: 'image/jpeg',
-      } as any);
-  
-      console.log('📤 Sending request to Flask server...');
-  
-      const aiResponse = await fetch('https://c8d2-183-82-237-45.ngrok-free.app/analyze', {
-        method: 'POST',
-        body: formData,
-        headers: {
-          Accept: 'application/json',
-          // ❌ Do NOT set 'Content-Type': it breaks boundary detection
-        },
-      });
-      console.log('📡 Calling Flask at:"https://c8d2-183-82-237-45.ngrok-free.app/analyze');
-      console.log('📥 Response status:', aiResponse.status);
-  
-      const contentType = aiResponse.headers.get("content-type");
-      console.log('📦 Content-Type:', contentType);
-  
-      if (!aiResponse.ok) {
-        const errorText = await aiResponse.text();
-        console.error('🔥 Server Error:', errorText);
-        throw new Error(`Server Error: ${errorText}`);
-      }
-  
-      if (contentType && contentType.includes("application/json")) {
-        const data = await aiResponse.json();
-        console.log('✅ AI Response:', data);
-        setAiSummary(data.summary || data.caption || '[No summary returned]');
-      } else {
-        const rawText = await aiResponse.text();
-        console.warn('⚠️ Unexpected response:', rawText);
-        throw new Error(`Unexpected response format: ${rawText}`);
-      }
-  
+        console.log('🧠 Starting fetchAISummary');
+        console.log('Original Image URI:', latestUpload.image);
+
+        if (!latestUpload.image) {
+            Alert.alert("Error", "No image selected.");
+            return;
+        }
+
+        const imageUri = await convertUriIfNeeded(latestUpload.image);
+        console.log('✅ Processed Image URI:', imageUri);
+
+        const formData = new FormData();
+        formData.append('image', {
+            uri: imageUri,
+            name: 'photo.jpg',
+            type: 'image/jpeg',
+        } as any);
+
+        console.log('📤 Sending request to Flask server...');
+        const aiResponse = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/analyze', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                Accept: 'application/json',
+            },
+        });
+
+        if (!aiResponse.ok) {
+            const errorText = await aiResponse.text();
+            console.error('🔥 Server Error:', errorText);
+            throw new Error(`Server Error: ${errorText}`);
+        }
+
+        const contentType = aiResponse.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+            const data = await aiResponse.json();
+            console.log('✅ AI Response:', data);
+            console.log('✅ Full AI Response:', data);
+            // Read data and parse into the summary and print
+
+            // Parse summary intoCaption  severity and priority 
+            console.log('Full data',data);
+            console.log('📍 Summary:', data.data.summary); 
+            console.log('📍 Message:', data.message);
+            console.log('📍 Severity:', data.data.severity);
+
+            // Use the summary or caption if summary is not available
+            setAiSummary(data.data.summary || '[No summary returned]');
+            setMessage(data.message);
+        } else {
+            const rawText = await aiResponse.text();
+            console.warn('⚠️ Unexpected response:', rawText);
+            throw new Error(`Unexpected response format: ${rawText}`);
+        }
+
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Unknown error';
-      console.error('⚠️ AI Summary Fetch Error:', msg);
-      setAiSummary('[Error generating summary: ' + msg + ']');
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        console.error('⚠️ AI Summary Fetch Error:', msg);
+        setAiSummary('[Error generating summary: ' + msg + ']');
     }
   };
   
@@ -215,7 +223,7 @@ export default function HomeScreen()
     }
   
     try {
-      const response = await fetch('https://c8d2-183-82-237-45.ngrok-free.app/api/auth/login', {
+      const response = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -299,7 +307,7 @@ export default function HomeScreen()
     }
     
     try {
-      const response = await fetch('https://c8d2-183-82-237-45.ngrok-free.app/api/auth/signup', {
+      const response = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -398,7 +406,7 @@ export default function HomeScreen()
     }
   
     try {
-      const res = await fetch('https://c8d2-183-82-237-45.ngrok-free.app/api/auth/send-otp', {
+      const res = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -455,7 +463,7 @@ export default function HomeScreen()
   // Function to verify OTP
   const verifyOTP = async () => {
     try {
-      const res = await fetch('https://c8d2-183-82-237-45.ngrok-free.app/api/auth/verify-otp', {
+      const res = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp }),
@@ -496,87 +504,100 @@ export default function HomeScreen()
     
         setScreen('summary');
   };
+  
   const uploadToServer = async () => {
-    let formData: FormData;
-  
     try {
-      // Create a new FormData object
-      formData = new FormData();
-      formData.append('userId', 'anishapaturi481');
-  
-      // Handle location being null
-      formData.append('location', latestUpload.location || '');
-      formData.append('summary', aiSummary || '');
-  
-      // Ensure the image object is correctly formatted
-      if (latestUpload.image) {
-        formData.append('image', {
-          uri: latestUpload.image,
-          name: 'upload.jpg',
-          type: 'image/jpeg',
-        } as any); // Use `as any` to cast it to an acceptable type if necessary
-      } else {
-        Alert.alert("Missing Image", "No image to upload.");
+      if (!latestUpload.location || !latestUpload.image) {
+        Alert.alert("Upload Error", "Please select an image and location.");
         return;
       }
-    } catch (error) {
-      console.error('Error while appending data to FormData:', error);
-      return; // Exit the function if there was an error creating formData
-    }
   
-    try {
-      if (!latestUpload.location || !aiSummary || !latestUpload.image) {
-        Alert.alert("Upload Error", "Missing one or more required fields.");
-        return;
-      }
-    
-      console.log("Uploading with:");
-      console.log("userId:", 'anishapaturi481');
-      console.log("location:", latestUpload.location);
-      console.log("summary:", aiSummary);
-      console.log("image:", latestUpload.image);
-      // Perform the fetch request with FormData
-      const res = await fetch('https://c8d2-183-82-237-45.ngrok-free.app/api/upload/new', {
+      // Step 1: Send image to /analyze to get AI-generated summary
+      const analyzeFormData = new FormData();
+      analyzeFormData.append('image', {
+        uri: latestUpload.image,
+        name: 'upload.jpg',
+        type: 'image/jpeg',
+      } as any);
+  
+      const analyzeRes = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/analyze', {
         method: 'POST',
-        body: formData, // body should be the formData object
+        body: analyzeFormData,
       });
   
-      const text = await res.text();
-      let data;
-  
-      // Attempt to parse the response text as JSON
+      const analyzeText = await analyzeRes.text();
+      let analyzeData;
       try {
-        data = JSON.parse(text);
-      } catch {
+        analyzeData = JSON.parse(analyzeText);
+      } catch (error) {
+        console.error('Invalid analyze response:', analyzeText);
+        throw new Error('Failed to analyze image');
+      }
+  
+      const summary = analyzeData?.data?.summary || '[No summary returned]';
+      console.log('🧠 AI Summary from Flask:', summary);
+  
+      setAiSummary(summary); // update state with the new summary
+  
+      // Step 2: Send the summary + image + location to /api/upload/new
+      const uploadFormData = new FormData();
+      uploadFormData.append('userId', 'anishapaturi481');
+      uploadFormData.append('location', latestUpload.location);
+      uploadFormData.append('summary', summary);
+  
+      uploadFormData.append('image', {
+        uri: latestUpload.image,
+        name: 'upload.jpg',
+        type: 'image/jpeg',
+      } as any);
+  
+      const uploadRes = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/api/upload/new', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          // Don't set 'Content-Type' manually!
+        },
+        body: uploadFormData,
+      });
+  
+      const uploadText = await uploadRes.text();
+      let uploadData;
+      try {
+        uploadData = JSON.parse(uploadText);
+      } catch (error) {
+        console.error('Invalid upload response:', uploadText);
         throw new Error('Upload failed: Invalid server response');
       }
   
-      // If the response is not OK, throw an error
-      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      if (!uploadRes.ok) {
+        throw new Error(uploadData.error || 'Upload failed');
+      }
   
-      // If everything goes well
-      Alert.alert("Success", "Upload sent to Supervisor");
-
-      // ✅ Update recent reports
+      console.log('✅ Upload success:', uploadData);
+  
+      Alert.alert("Success 🎉", "Upload sent successfully to Supervisor!");
+  
       const newReport = {
         time: new Date().toLocaleTimeString(),
-        message: aiSummary || '[No summary]',
+        message: summary,
       };
-      
+  
       setRecentReports((prev) => [newReport, ...prev.slice(0, 4)]);
-
-        setScreen('workerDashboard');
-      } catch (err: unknown) {
-        // Type the error as an instance of Error
-        if (err instanceof Error) {
-          console.error("Upload Error:", err);
-          Alert.alert("Upload Failed", err.message);
-        } else {
-          console.error("Unknown error:", err);
-          Alert.alert("Upload Failed", "An unknown error occurred");
-        }
+      setScreen('workerDashboard');
+  
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        console.error('Upload Error:', err.message);
+        Alert.alert('Upload Failed ❌', err.message);
+      } else {
+        console.error('Unknown Upload Error');
+        Alert.alert('Upload Failed ❌', 'An unknown error occurred.');
       }
-    };
+    }
+  };
+  
+    
+  
   const handleNewReport = (isUrgent: boolean) => {
     setTotalReports(prev => prev + 1);
     setPendingReports(prev => prev + 1);  // Mark as pending by default
@@ -600,7 +621,7 @@ export default function HomeScreen()
     }
 
     try {
-      const res = await fetch('https://c8d2-183-82-237-45.ngrok-free.app/api/auth/reset-password', {
+      const res = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, newPassword }),
@@ -985,6 +1006,8 @@ export default function HomeScreen()
           ) : (
             <Text style={{ color: 'white', fontSize: 14 }}>Generating summary...</Text>
           )}
+          <Text style={{ color: 'white', fontSize: 16 }}>Message: {message}</Text>
+          
           {/* 👇 Optional, keep if you want metadata line */}
           <TouchableOpacity style={styles.uploadButton} onPress={uploadToServer}>
             <ThemedText type="defaultSemiBold" style={styles.buttonText}>Upload</ThemedText>

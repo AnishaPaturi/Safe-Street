@@ -5,11 +5,16 @@ const multer = require('multer');
 const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
-require('dotenv').config();
 const nodemailer = require('nodemailer');
 const bcrypt = require('bcrypt');
+require('dotenv').config();
 
+// Import Models
+const User = require('./models/User');
+const Summary = require('./models/Summary');
+const Upload = require('./models/Upload');
 
+// Import Routes
 const authRoutes = require('./routes/auth');
 const uploadRoutes = require('./routes/upload');
 const analyzeRoutes = require('./routes/analyze');
@@ -20,138 +25,200 @@ app.use(express.json());
 
 // In-memory store for OTPs
 let otpStore = {};
-exports.sendOTP = async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'Email is required.' });
-  const user = await User.findOne({ email });
-  if (!user) return res.status(404).json({ error: 'User not found.' });
 
-  const otp = Math.floor(100000 + Math.random() * 900000).toString();
-  otpStore[email] = {
-    otp,
-    expiresAt: Date.now() + 10 * 60 * 1000, // 10 mins
-  };
+// --- OTP and Password Reset APIs ---
+app.post('/api/send-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: 'Email is required.' });
 
-  const transporter = nodemailer.createTransport({
-    service: 'gmail',
-    auth: {
-      user: 'safestreet3@gmail.com',
-      pass: 'bavqstwykhhcnzyw', 
-    },
-  });
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ error: 'User not found.' });
 
-  const mailOptions = {
-    from: 'SafeStreet <safestreet3@gmail.com>',
-    to: email,
-    subject: 'Your OTP for SafeStreet Password Reset',
-    text: `Your OTP is ${otp}. It will expire in 10 minutes.`,
-  };
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    otpStore[email] = { otp, expiresAt: Date.now() + 10 * 60 * 1000 };
 
-  transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      console.error('Error sending OTP:', error);
-      return res.status(500).json({ error: 'Failed to send OTP.' });
-    } else {
-      console.log('Email sent: ' + info.response);
-      res.json({ message: 'OTP sent successfully.' });
-    }
-  });
-};
-//Verify OTP only (no password update here)
-exports.verifyOTP = async (req, res) => {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: 'SafeStreet <safestreet3@gmail.com>',
+      to: email,
+      subject: 'Your OTP for SafeStreet Password Reset',
+      text: `Your OTP is ${otp}. It will expire in 10 minutes.`,
+    });
+
+    res.json({ message: 'OTP sent successfully.' });
+  } catch (error) {
+    console.error('Error sending OTP:', error);
+    res.status(500).json({ error: 'Failed to send OTP.' });
+  }
+});
+
+// Verify OTP
+app.post('/api/verify-otp', (req, res) => {
   const { email, otp } = req.body;
   const record = otpStore[email];
 
   if (!record) return res.status(400).json({ error: 'No OTP sent for this email.' });
-
   if (record.otp !== otp || Date.now() > record.expiresAt) {
     return res.status(400).json({ error: 'Invalid or expired OTP.' });
   }
+
   res.json({ message: 'OTP verified successfully.' });
-};
+});
 
-//Reset Password (after OTP is verified)
-exports.resetPassword = async (req, res) => {
-  const { email, newPassword } = req.body;
-  const record = otpStore[email];
+// Reset Password
+app.post('/api/reset-password', async (req, res) => {
+  try {
+    const { email, newPassword } = req.body;
+    const record = otpStore[email];
 
-  if (!record) return res.status(400).json({ error: 'OTP not verified or expired.' });
+    if (!record) return res.status(400).json({ error: 'OTP not verified or expired.' });
 
-  const user = await User.findOne({ email });
-  if (!user) return res.status(404).json({ error: 'User not found.' });
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ error: 'User not found.' });
 
-  const hashedPassword = await bcrypt.hash(newPassword, 10);
-  user.password = hashedPassword;
-  await user.save();
-// Remove OTP after password reset
-delete otpStore[email];
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
 
-res.json({ message: 'Password reset successful.' });
-};
+    delete otpStore[email];
+    res.json({ message: 'Password reset successful.' });
+  } catch (error) {
+    console.error('Error resetting password:', error);
+    res.status(500).json({ error: 'Server error during password reset.' });
+  }
+});
 
+// --- MongoDB Connection ---
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
-  .catch(err => console.log('MongoDB error:', err));
+  .then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.error('❌ MongoDB connection error:', err));
 
-
-app.use('/api/auth', authRoutes);
-app.use('/api/upload', uploadRoutes);
-app.use('/api/analyze', analyzeRoutes);
-
-
+// --- Multer Setup for Uploads ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
 });
+
 const upload = multer({ storage });
 
+// --- Analyze Route ---
 app.post('/analyze', upload.single('image'), async (req, res) => {
-    console.log("📸 Uploaded file:", req.file);
-  
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
-  
-    try {
-      const form = new FormData();
+  console.log("📸 Uploaded file:", req.file);
 
-      form.append('image', fs.createReadStream(req.file.path));
-  
-      console.log("📤 Sending to Flask...");
-      const flaskURL = 'https://aa1f-34-106-205-175.ngrok-free.app/analyze';
-      console.log("📡 Sending POST request to:", flaskURL);
-      
-      const response = await axios.post(flaskURL, form, {
-        headers: {
-          ...form.getHeaders(),
-          'Content-Type': 'multipart/form-data'
-        },
-      });
-      console.log('✅ Flask Response:', response.data);
-  
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
+  try {
+    const form = new FormData();
+    form.append('image', fs.createReadStream(req.file.path));
+
+    console.log("📤 Sending to Flask...");
+    const flaskURL = 'https://7a10-34-169-58-62.ngrok-free.app/analyze';
+    console.log("📡 Sending POST request to:", flaskURL);
+
+    const response = await axios.post(flaskURL, form, {
+      headers: {
+        ...form.getHeaders(),
+        'Content-Type': 'multipart/form-data'
+      },
+    });
+
+    console.log('✅ Flask Response:', response.data);
+
+    const newSummary = new Summary({
+      imageUrl: `/uploads/${req.file.filename}`,
+      imageType: req.file.mimetype,
+      summary: response.data.summary || 'No summary available',
+      address: response.data.address || 'Address not provided',
+    });
+
+    await newSummary.save();
+    console.log('✅ Summary saved to MongoDB');
+
+    fs.unlink(req.file.path, (err) => {
+      if (err) console.error('Error deleting file:', err);
+    });
+
+    // ✅ Important: Only send small fields back to app
+    res.json({
+      message: 'Analysis and saving successful!',
+      data: {
+        summary: newSummary.summary,
+        address: newSummary.address,
+        imageUrl: newSummary.imageUrl,
+        _id: newSummary._id,
+        createdAt: newSummary.createdAt,
+      }
+    });
+
+  } catch (err) {
+    console.error('🔥 Analyze error:', err);
+
+    if (req.file?.path) {
       fs.unlink(req.file.path, (err) => {
         if (err) console.error('Error deleting file:', err);
       });
-      
-      res.json(response.data);
-    } catch (err) {
-      console.error('🔥 Analyze error:', err);
-      
-      // Clean up file even if error occurs
-      if (req.file?.path) {
-        fs.unlink(req.file.path, (err) => {
-          if (err) console.error('Error deleting file:', err);
-        });
-      }
-      
-      res.status(500).json({ 
-        error: 'Failed to analyze image',
-        details: err.message 
-      });
     }
+
+    res.status(500).json({
+      error: 'Failed to analyze and save image',
+      details: err.message,
+    });
+  }
 });
-  
+
+// --- Upload New Route for Mobile App ---
+app.post('/api/upload/new', upload.single('image'), async (req, res) => {
+  try {
+    const { userId, location, summary } = req.body;
+    console.log('📥 New Upload Request:', req.body);  // Log to check incoming data
+
+    if (!userId || !location || !summary) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    const newUpload = new Upload({
+      userId,
+      imageUrl: req.file ? `/uploads/${req.file.filename}` : '',
+      location,
+      summary,  // The summary received from frontend
+    });
+
+    await newUpload.save();
+
+    // Log the response object before sending it back to the frontend
+    const responseData = {
+      message: 'Upload saved successfully!',
+      data: {
+        summary: newUpload.summary,
+        address: newUpload.location,
+        imageUrl: newUpload.imageUrl,
+        _id: newUpload._id,
+        createdAt: newUpload.createdAt,
+      },
+    };
+    console.log('📤 Server Response:', responseData);  // Log the full response
+
+    res.json(responseData);  // Send back the response to the client
+  } catch (err) {
+    console.error('Upload save error:', err);
+    res.status(500).json({ error: 'Failed to save upload' });
+  }
+});
 
 
+// --- Routes ---
+app.use('/api/auth', authRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/analyze', analyzeRoutes);
+
+// --- Start Server ---
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
