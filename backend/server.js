@@ -106,7 +106,6 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
 });
-
 const upload = multer({ storage });
 
 // --- Analyze Route ---
@@ -120,7 +119,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     form.append('image', fs.createReadStream(req.file.path));
 
     console.log("📤 Sending to Flask...");
-    const flaskURL = 'https://7a10-34-169-58-62.ngrok-free.app/analyze';
+    const flaskURL = 'https://4426-35-245-8-225.ngrok-free.app/analyze';
     console.log("📡 Sending POST request to:", flaskURL);
 
     const response = await axios.post(flaskURL, form, {
@@ -136,9 +135,9 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
       imageUrl: `/uploads/${req.file.filename}`,
       imageType: req.file.mimetype,
       summary: response.data.summary || 'No summary available',
-      address: response.data.address || 'Address not provided',
+      address: req.body.location || response.data.address || 'Address not provided',
     });
-
+    
     await newSummary.save();
     console.log('✅ Summary saved to MongoDB');
 
@@ -146,7 +145,6 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
       if (err) console.error('Error deleting file:', err);
     });
 
-    // ✅ Important: Only send small fields back to app
     res.json({
       message: 'Analysis and saving successful!',
       data: {
@@ -178,7 +176,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
 app.post('/api/upload/new', upload.single('image'), async (req, res) => {
   try {
     const { userId, location, summary } = req.body;
-    console.log('📥 New Upload Request:', req.body);  // Log to check incoming data
+    console.log('📥 New Upload Request:', req.body);
 
     if (!userId || !location || !summary) {
       return res.status(400).json({ error: 'Missing required fields' });
@@ -188,12 +186,11 @@ app.post('/api/upload/new', upload.single('image'), async (req, res) => {
       userId,
       imageUrl: req.file ? `/uploads/${req.file.filename}` : '',
       location,
-      summary,  // The summary received from frontend
+      summary,
     });
 
     await newUpload.save();
 
-    // Log the response object before sending it back to the frontend
     const responseData = {
       message: 'Upload saved successfully!',
       data: {
@@ -204,17 +201,29 @@ app.post('/api/upload/new', upload.single('image'), async (req, res) => {
         createdAt: newUpload.createdAt,
       },
     };
-    console.log('📤 Server Response:', responseData);  // Log the full response
+    console.log('📤 Server Response:', responseData);
 
-    res.json(responseData);  // Send back the response to the client
+    res.json(responseData);
   } catch (err) {
     console.error('Upload save error:', err);
     res.status(500).json({ error: 'Failed to save upload' });
   }
 });
 
+// --- ✅ Fetch all previous uploads ---
+app.get('/api/upload/all', async (req, res) => {
+  try {
+    const uploads = await Upload.find().sort({ createdAt: -1 });
+    res.json(uploads);
+  } catch (error) {
+    console.error('Error fetching uploads:', error);
+    res.status(500).json({ error: 'Failed to fetch uploads' });
+  }
+});
 
-// --- Routes ---
+
+
+// --- Main Routes ---
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/analyze', analyzeRoutes);

@@ -14,20 +14,24 @@ import * as ImagePicker from 'expo-image-picker';
 import { Camera } from 'expo-camera';
 import * as Location from 'expo-location';
 import { ThemedText } from '@/components/ThemedText';
-import { Video } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import MapView, { Marker } from 'react-native-maps';
 import * as FileSystem from 'expo-file-system';
 import { LocationGeocodedAddress } from 'expo-location';
 import { ScrollView } from 'react-native';
-import { LineChart } from 'react-native-chart-kit';
-import { Dimensions } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
-
+import { WebView } from 'react-native-webview';
+import { ActivityIndicator } from 'react-native';
 
 
 export default function HomeScreen() 
 {
+  type Report = {
+    _id: string;
+    userId: string;
+    imageUrl: string;
+    location: string;
+    summary: string;
+    createdAt: string;
+  };  
   const [screen, setScreen] = useState('home');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -44,11 +48,8 @@ export default function HomeScreen()
     image: string | null;
     location: string | null;
     date: string;
-  }>({
-    image: null,
-    location: null,
-    date: '',
-  });
+    coordinates?: { latitude: number; longitude: number } | null;
+  }>({ image: null, location: null, date: '', coordinates: null });
   // Animations
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
@@ -69,10 +70,10 @@ export default function HomeScreen()
   const [urgentReports, setUrgentReports] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [recentReports, setRecentReports] = useState<{ time: string; message: string }[]>([]);
-  const [damageType, setDamageType] = useState('');
-  const [severity, setSeverity] = useState('');
-  const [priority, setPriority] = useState('');
   const [message, setMessage] = useState('');
+  const [allReports, setAllReports] = useState<Report[]>([]);
+  const [loadingReports, setLoadingReports] = useState(true);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
  
   useEffect(() => {
@@ -117,7 +118,7 @@ export default function HomeScreen()
         } as any);
 
         console.log('📤 Sending request to Flask server...');
-        const aiResponse = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/analyze', {
+        const aiResponse = await fetch('https://347a-183-82-237-45.ngrok-free.app/analyze', {
             method: 'POST',
             body: formData,
             headers: {
@@ -142,7 +143,6 @@ export default function HomeScreen()
             console.log('Full data',data);
             console.log('📍 Summary:', data.data.summary); 
             console.log('📍 Message:', data.message);
-            console.log('📍 Severity:', data.data.severity);
 
             // Use the summary or caption if summary is not available
             setAiSummary(data.data.summary || '[No summary returned]');
@@ -223,7 +223,7 @@ export default function HomeScreen()
     }
   
     try {
-      const response = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/api/auth/login', {
+      const response = await fetch('https://347a-183-82-237-45.ngrok-free.app/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -247,10 +247,17 @@ export default function HomeScreen()
       if (!data.user || !data.user._id) {
         throw new Error('User not found in response');
       }
-  
-      Alert.alert('Login Successful', `Welcome, ${data.user.name || 'User'}`);
+      
+      // ✅ Save the userId into AsyncStorage
+      await AsyncStorage.setItem('userId', data.user._id);
+      
+      // ✅ Save name and email into state
       setFullName(data.user.name || '');
       setEmail(data.user.email || '');
+      
+      // ✅ Show success message
+      Alert.alert('Login Successful', `Welcome, ${data.user.name || 'User'}`);
+      
       // Navigate to correct dashboard
       if (selectedRole === 'Worker') {
         setScreen('workerDashboard');
@@ -307,7 +314,7 @@ export default function HomeScreen()
     }
     
     try {
-      const response = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/api/auth/signup', {
+      const response = await fetch('https://347a-183-82-237-45.ngrok-free.app/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -400,70 +407,100 @@ export default function HomeScreen()
       setLocation("Location not found");
     }
   };
-  const sendOtpToEmail = async () => {
-    if (!email.includes('@')) {
-      return Alert.alert('Invalid Email', 'Please enter a valid email address');
-    }
-  
+  const getCoordsFromAddress = async (address: string) => {
     try {
-      const res = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/api/auth/send-otp', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
+      const locations = await Location.geocodeAsync(address);
+      if (locations.length > 0) {
+        const { latitude, longitude } = locations[0];
+        console.log('Coordinates from address:', latitude, longitude);
   
-      const data = await res.json();
-      if (!res.ok) return Alert.alert('Error', data.error || 'Something went wrong');
-  
-      Alert.alert('OTP Sent ✅', 'Check your email for the OTP');
-    } catch (err) {
-      Alert.alert('Error', 'Server error');
+        setSelectedLocation({ latitude, longitude });
+      } else {
+        Alert.alert('Error', 'No location found for this address.');
+      }
+    } catch (error) {
+      console.error('Error getting coordinates:', error);
+      Alert.alert('Error', 'Failed to fetch location coordinates.');
     }
   };
   
+  <View style={styles.manualContainer}>
+  <ThemedText type="title" style={styles.heading}>Enter Location</ThemedText>
+
+  <TextInput
+    placeholder="Type location here..."
+    value={address}
+    onChangeText={setAddress}
+    style={styles.manual_input}
+    placeholderTextColor="#999"
+  />
+
+  <TouchableOpacity
+    style={styles.getLocationButton}
+    onPress={() => getCoordsFromAddress(address)} // 👈 call the function
+  >
+    <ThemedText type="defaultSemiBold" style={styles.buttonText}>Get Address</ThemedText>
+  </TouchableOpacity>
+
+  {address !== '' && (
+    <Text style={{ marginTop: 10, fontSize: 16, color: '#000' }}>
+      Selected Address: {address}
+    </Text>
+  )}
+
+  <View style={styles.mapContainer}>
+    <View style={{ height: 200, width: '100%', borderRadius: 10, overflow: 'hidden' }}>
+      <WebView
+        source={{ uri: 'https://www.openstreetmap.org' }}
+        style={{ flex: 1 }}
+      />
+    </View>
+  </View>
+
+  <TouchableOpacity
+    style={styles.manual_backButton}
+    onPress={() => {
+      if (!address) {
+        Alert.alert('Error', 'Please select an address first');
+        return;
+      }
+      setLatestUpload(prev => ({ ...prev, location: address }));
+      setScreen('imageUpload');
+    }}
+  >
+    <ThemedText type="defaultSemiBold" style={styles.buttonText}>Done</ThemedText>
+  </TouchableOpacity>
+</View>
+
   
-  const MapContainerComponent = ({ position, setPosition }: { position: [number, number] | null, setPosition: (pos: [number, number]) => void }) => {
-    return (
-      <MapView
-        style={{ height: 200, width: '100%' }}
-        initialRegion={{
-          latitude: position?.[0] ?? 22.9734,
-          longitude: position?.[1] ?? 78.6569,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
-        }}
-        onPress={async (e) => {
-          const { latitude, longitude } = e.nativeEvent.coordinate;
-          setPosition([latitude, longitude]);
+const sendOtpToEmail = async () => {
+  if (!email.includes('@')) {
+    return Alert.alert('Invalid Email', 'Please enter a valid email address');
+  }
 
-          try {
-            const [addr] = await Location.reverseGeocodeAsync({ latitude, longitude });
-            setAddress(
-              `${addr.name ? addr.name + ', ' : ''}` +
-              `${addr.street ? addr.street + ', ' : ''}` +
-              `${addr.postalCode ? addr.postalCode + ', ' : ''}` +
-              `${addr.city ? addr.city + ', ' : ''}` +
-              `${addr.region ? addr.region + ', ' : ''}` +
-              `${addr.country ? addr.country : ''}`
-            );
-          } catch (error) {
-            console.error("Reverse geocoding failed:", error);
-          }
-        }}
-      >
-        {position && (
-          <Marker coordinate={{ latitude: position[0], longitude: position[1] }} />
-        )}
-      </MapView>
+  try {
+    const res = await fetch('https://347a-183-82-237-45.ngrok-free.app/api/send-otp', { // ✅ Corrected URL
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
 
-    );
-  };
+    const data = await res.json();
+    if (!res.ok) return Alert.alert('Error', data.error || 'Something went wrong');
+
+    Alert.alert('OTP Sent ✅', 'Check your email for the OTP');
+    setScreen('otpVerification'); // ✅ After sending OTP, move to OTP screen
+  } catch (err) {
+    console.error('Send OTP Error:', err);
+    Alert.alert('Error', 'Server error');
+  }
+};
   
   
   // Function to verify OTP
   const verifyOTP = async () => {
     try {
-      const res = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/api/auth/verify-otp', {
+      const res = await fetch('https://347a-183-82-237-45.ngrok-free.app/api/verify-otp', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp }),
@@ -473,11 +510,13 @@ export default function HomeScreen()
       if (!res.ok) return Alert.alert('Error', data.error || 'Invalid OTP');
   
       Alert.alert('Verified!', 'OTP verified successfully');
-      setScreen('resetPassword'); // ✅ transition to reset screen
+      setScreen('resetPassword'); // ✅ Move to Reset Password Screen
     } catch (err) {
+      console.error('Verify OTP Error:', err);
       Alert.alert('Error', 'Server error');
     }
   };
+  
   
 
   const handleSummaryClick = () => {
@@ -487,6 +526,9 @@ export default function HomeScreen()
         ? `Latitude: ${position[0]}, Longitude: ${position[1]}`
         : 'No location',
       date: new Date().toLocaleDateString(),
+      coordinates: position
+        ? { latitude: position[0], longitude: position[1] }
+        : null,
     });    
     setScreen('summary');
   };
@@ -500,6 +542,7 @@ export default function HomeScreen()
       image,
       location: address || location || 'No location provided',
       date: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+      coordinates: selectedLocation || null, 
     });
     
         setScreen('summary');
@@ -512,7 +555,13 @@ export default function HomeScreen()
         return;
       }
   
-      // Step 1: Send image to /analyze to get AI-generated summary
+      const userId = await AsyncStorage.getItem('userId');
+      if (!userId) {
+        Alert.alert("Error", "User not logged in properly.");
+        return;
+      }
+  
+      // Step 1: Analyze
       const analyzeFormData = new FormData();
       analyzeFormData.append('image', {
         uri: latestUpload.image,
@@ -520,7 +569,7 @@ export default function HomeScreen()
         type: 'image/jpeg',
       } as any);
   
-      const analyzeRes = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/analyze', {
+      const analyzeRes = await fetch('https://347a-183-82-237-45.ngrok-free.app/analyze', {
         method: 'POST',
         body: analyzeFormData,
       });
@@ -535,28 +584,22 @@ export default function HomeScreen()
       }
   
       const summary = analyzeData?.data?.summary || '[No summary returned]';
-      console.log('🧠 AI Summary from Flask:', summary);
+      setAiSummary(summary);
   
-      setAiSummary(summary); // update state with the new summary
-  
-      // Step 2: Send the summary + image + location to /api/upload/new
+      // Step 2: Upload to server
       const uploadFormData = new FormData();
-      uploadFormData.append('userId', 'anishapaturi481');
+      uploadFormData.append('userId', userId);
       uploadFormData.append('location', latestUpload.location);
       uploadFormData.append('summary', summary);
-  
       uploadFormData.append('image', {
         uri: latestUpload.image,
         name: 'upload.jpg',
         type: 'image/jpeg',
       } as any);
   
-      const uploadRes = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/api/upload/new', {
+      const uploadRes = await fetch('https://347a-183-82-237-45.ngrok-free.app/api/upload/new', {
         method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          // Don't set 'Content-Type' manually!
-        },
+        headers: { Accept: 'application/json' },
         body: uploadFormData,
       });
   
@@ -574,15 +617,7 @@ export default function HomeScreen()
       }
   
       console.log('✅ Upload success:', uploadData);
-  
       Alert.alert("Success 🎉", "Upload sent successfully to Supervisor!");
-  
-      const newReport = {
-        time: new Date().toLocaleTimeString(),
-        message: summary,
-      };
-  
-      setRecentReports((prev) => [newReport, ...prev.slice(0, 4)]);
       setScreen('workerDashboard');
   
     } catch (err: unknown) {
@@ -621,7 +656,7 @@ export default function HomeScreen()
     }
 
     try {
-      const res = await fetch('https://c2b6-183-82-237-45.ngrok-free.app/api/auth/reset-password', {
+      const res = await fetch('https://347a-183-82-237-45.ngrok-free.app/api/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, newPassword }),
@@ -639,7 +674,49 @@ export default function HomeScreen()
       Alert.alert('Error', 'Server error. Please try again later.');
     }
   };
- 
+
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        const res = await fetch('https://347a-183-82-237-45.ngrok-free.app/api/upload/all');
+        const data = await res.json();
+        setAllReports(data);
+      } catch (err) {
+        console.error('Failed fetching reports:', err);
+      } finally {
+        setLoadingReports(false);
+      }
+    };
+  
+    fetchReports();
+  }, []);
+  
+
+  const logout = async () => {
+    try {
+      // ✅ Clear all important AsyncStorage data
+      await AsyncStorage.removeItem('userId');
+      await AsyncStorage.removeItem('selectedRole');
+  
+      // ✅ Reset important states
+      setFullName('');
+      setEmail('');
+      setPassword('');
+      setSelectedRole(null);
+      setImage(null);
+      setLocation(null);
+  
+      // ✅ Navigate to home or login screen
+      setScreen('home');
+      
+      Alert.alert('Logged Out', 'You have been logged out successfully.');
+    } catch (err) {
+      console.error('Logout Error:', err);
+      Alert.alert('Error', 'Something went wrong during logout.');
+    }
+  };
+  
+  
   
   
   
@@ -685,42 +762,63 @@ export default function HomeScreen()
         </View>
       )}
       {screen === 'login' && (
-        <View style={styles.LoginContainer}>
-          <ThemedText type="title" style={styles.authTitle}>
-            {selectedRole ? `${selectedRole} Login` : 'Login'}
-          </ThemedText>
+        <ScrollView contentContainerStyle={styles.loginScrollContainer}>
+        <View style={styles.loginCard}>
+          <Text style={styles.loginTitle}>{selectedRole ? `${selectedRole} Login` : 'Login'}</Text>
+      
+          {/* Email Input */}
           <TextInput
-            style={styles.input}
+            style={styles.loginInput}
             placeholder="Enter Email"
+            keyboardType="email-address"
             value={email}
             onChangeText={setEmail}
-            keyboardType="email-address"
+            placeholderTextColor="#999"
           />
-          <TextInput
-            style={styles.input}
-            placeholder="Enter Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
-          {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
-          
-          <TouchableOpacity style={styles.submitButton} onPress={validateAndLogin}>
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Submit</ThemedText>
+      
+          {/* Password Input with Eye */}
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Enter Password"
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+              placeholderTextColor="#999"
+            />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+            </TouchableOpacity>
+          </View>
+      
+          {/* Error Message */}
+          {errorMessage ? <Text style={styles.errorMessage}>{errorMessage}</Text> : null}
+      
+          {/* Submit Button */}
+          <TouchableOpacity style={styles.loginButton} onPress={validateAndLogin}>
+            <Text style={styles.buttonText}>Submit</Text>
           </TouchableOpacity>
-          {/* Forgot Password */}
+      
+          {/* Forgot Password Link */}
           <TouchableOpacity onPress={() => setScreen('forgotPassword')}>
-            <Text style={styles.linkText}>Forgot Password?</Text>
+            <Text style={styles.loginLink}>Forgot Password?</Text>
           </TouchableOpacity>
-          {/* Signup Link */}
+      
+          {/* Sign Up Link */}
           <TouchableOpacity onPress={() => setScreen('signup')}>
-            <Text style={styles.linkText}>Don't have an account? <Text style={styles.boldText}>Sign up here</Text></Text>
+            <Text style={styles.loginLink}>
+              Don't have an account? <Text style={styles.loginLinkBold}>Sign up here</Text>
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('auth')}>
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
+      
+          {/* Back Button */}
+          <TouchableOpacity style={styles.backButton} onPress={() => setScreen('auth')}>
+            <Text style={styles.buttonText}>Back</Text>
           </TouchableOpacity>
         </View>
+      </ScrollView>      
       )}
+
       {screen === 'forgotPassword' && (
         <View style={styles.forgotPasswordcontainer}>
           <View style={styles.forgotPasswordcard}>
@@ -742,78 +840,163 @@ export default function HomeScreen()
         </View>
       )}
       {screen === 'otpVerification' && (
-        <View style={styles.container}>
-        <View style={styles.card}>
-          <Text style={styles.label}>Enter OTP sent to:</Text>
-          <Text style={styles.email}>{email}</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter OTP"
-            keyboardType="numeric"
-            onChangeText={setOtp}
-          />
-          <TouchableOpacity style={styles.button} onPress={verifyOTP}>
-            <Text style={styles.buttonText}>Verify OTP</Text>
-          </TouchableOpacity>
+        <View style={styles.forgotPasswordcontainer}>
+          <View style={styles.forgotPasswordcard}>
+            <Text style={styles.title}>🔐 Enter OTP</Text>
+
+            <Text style={styles.label}>OTP sent to:</Text>
+            <Text style={styles.email}>{email}</Text>
+
+            <TextInput
+              style={styles.input}
+              placeholder="Enter OTP"
+              keyboardType="numeric"
+              onChangeText={setOtp}
+              value={otp}
+            />
+
+            <TouchableOpacity style={styles.submitButton} onPress={verifyOTP}>
+              <Text style={styles.buttonText}>Verify OTP</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('forgotPassword')}>
+              <Text style={styles.buttonText}>Back</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
-  
       )}
+
       {screen === 'resetPassword' && (
-        <View style={styles.container}>
-          <View style={styles.card}>
-            <Text style={styles.title}>Reset Password</Text>
+        <View style={styles.forgotPasswordcontainer}>
+          <View style={styles.forgotPasswordcard}>
+            <Text style={styles.title}>🔐 Reset Password</Text>
 
             <Text style={styles.label}>New Password</Text>
             <TextInput
               style={styles.input}
-              placeholder="New Password"
+              placeholder="Enter new password"
               secureTextEntry={!showPassword}
               onChangeText={setNewPassword}
+              value={newPassword}
             />
 
             <Text style={styles.label}>Confirm Password</Text>
             <TextInput
               style={styles.input}
-              placeholder="Confirm Password"
+              placeholder="Confirm new password"
               secureTextEntry={!showPassword}
               onChangeText={setConfirmPassword}
+              value={confirmPassword}
             />
 
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
               <Text style={styles.toggle}>
-                {showPassword ? 'Hide' : 'Show'} Password
+                {showPassword ? 'Hide Password' : 'Show Password'}
               </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.button} onPress={resetPassword}>
+            <TouchableOpacity style={styles.submitButton} onPress={resetPassword}>
               <Text style={styles.buttonText}>Reset Password</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('login')}>
+              <Text style={styles.buttonText}>Back to Login</Text>
             </TouchableOpacity>
           </View>
         </View>
       )}
 
       {screen === 'signup' && (
-        <View style={styles.SignupContainer}>
-          <ThemedText type="title" style={styles.authTitle}>
-            {selectedRole ? `${selectedRole} Sign Up` : 'Sign Up'}
-          </ThemedText>
-          <TextInput style={styles.input} placeholder="Full Name" value={fullName} onChangeText={setFullName} />
-          <TextInput style={styles.input} placeholder="Phone Number" keyboardType="phone-pad" value={phoneNumber} onChangeText={setPhoneNumber} />
-          <TextInput style={styles.input} placeholder="Email" keyboardType="email-address" value={email} onChangeText={setEmail} />
-          <TextInput style={styles.input} placeholder="Occupation" value={occupation} onChangeText={setOccupation} />
-          <TextInput style={styles.input} placeholder="Password" secureTextEntry value={password} onChangeText={setPassword} />
-          <TextInput style={styles.input} placeholder="Confirm Password" secureTextEntry value={confirmPassword} onChangeText={setConfirmPassword} />
-          <TouchableOpacity style={styles.submitButton} onPress={validateAndSignUp}>
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Submit</ThemedText>
+        <ScrollView contentContainerStyle={styles.signupScrollContainer}>
+        <View style={styles.signupCard}>
+          <Text style={styles.signupTitle}>Worker Sign Up</Text>
+      
+          {/* Full Name */}
+          <TextInput
+            style={styles.signupInput}
+            placeholder="Full Name"
+            value={fullName}
+            onChangeText={setFullName}
+            placeholderTextColor="#999"
+          />
+      
+          {/* Phone Number */}
+          <TextInput
+            style={styles.signupInput}
+            placeholder="Phone Number"
+            keyboardType="phone-pad"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            placeholderTextColor="#999"
+          />
+      
+          {/* Email */}
+          <TextInput
+            style={styles.signupInput}
+            placeholder="Email"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+            placeholderTextColor="#999"
+          />
+      
+          {/* Occupation */}
+          <TextInput
+            style={styles.signupInput}
+            placeholder="Occupation"
+            value={occupation}
+            onChangeText={setOccupation}
+            placeholderTextColor="#999"
+          />
+      
+          {/* Password + Eye Button */}
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Password"
+              secureTextEntry={!showPassword}
+              value={password}
+              onChangeText={setPassword}
+              placeholderTextColor="#999"
+            />
+            <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              <Text style={styles.eyeIcon}>{showPassword ? '🙈' : '👁️'}</Text>
+            </TouchableOpacity>
+          </View>
+      
+          {/* Confirm Password + Eye Button */}
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Confirm Password"
+              secureTextEntry={!showConfirmPassword}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              placeholderTextColor="#999"
+            />
+            <TouchableOpacity onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+              <Text style={styles.eyeIcon}>{showConfirmPassword ? '🙈' : '👁️'}</Text>
+            </TouchableOpacity>
+          </View>
+      
+          {/* Submit Button */}
+          <TouchableOpacity style={styles.signupButton} onPress={validateAndSignUp}>
+            <Text style={styles.buttonText}>Submit</Text>
           </TouchableOpacity>
+      
+          {/* Already have an account */}
           <TouchableOpacity onPress={() => setScreen('login')}>
-            <Text style={styles.linkText}>Already have an account? <Text style={styles.boldText}>Login here</Text></Text>
+            <Text style={styles.loginLink}>
+              Already have an account? <Text style={styles.loginLinkBold}>Login here</Text>
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('auth')}>
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
+      
+          {/* Back Button */}
+          <TouchableOpacity style={styles.backButton} onPress={() => setScreen('auth')}>
+            <Text style={styles.buttonText}>Back</Text>
           </TouchableOpacity>
         </View>
+      </ScrollView>      
       )}
       {/* Role Selection */}
       {screen === 'roleSelection' && (
@@ -876,7 +1059,16 @@ export default function HomeScreen()
           {image && (
             <View>
               <Image source={{ uri: image }} style={styles.previewImage} />
-              <TouchableOpacity style={styles.submitButton} onPress={() => setImage(null)}>
+              <TouchableOpacity
+                style={styles.submitButton}
+                onPress={() => {
+                  setImage(null);
+                  setLocation(null);
+                  setAddress('');
+                  setPosition(null);
+                  setSelectedLocation(null);
+                }}
+              >
                 <ThemedText type="defaultSemiBold" style={styles.buttonText}>Retake</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity style={styles.submitButton} onPress={() => setScreen('manualLocation')}>
@@ -925,74 +1117,114 @@ export default function HomeScreen()
       )}
       {screen === 'manualLocation' && (
         <View style={styles.manualContainer}>
-          <ThemedText type="title" style={styles.heading}>Enter Location</ThemedText>
-          <TextInput
-            placeholder="Enter address manually"
-            value={address}
-            onChangeText={setAddress}
-            style={styles.manual_input}
-            placeholderTextColor="#999"
-          />
-          <TouchableOpacity style={styles.getLocationButton} onPress={() => setScreen('summary')}>
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Summary</ThemedText>
-          </TouchableOpacity>
+          <ThemedText type="title" style={styles.heading}>Pick Location on Map</ThemedText>
+
           <View style={styles.mapContainer}>
-            <View style={{ height: 200, borderRadius: 10, overflow: 'hidden' }}>
-              <MapView
-                style={{ flex: 1 }}
-                initialRegion={{
-                  latitude: position?.[0] || 37.78825,
-                  longitude: position?.[1] || -122.4324,
-                  latitudeDelta: 0.005,
-                  longitudeDelta: 0.005,
-                }}
-                onPress={async (e) => {
-                  const { latitude, longitude } = e.nativeEvent.coordinate;
-                  setPosition([latitude, longitude]);
-                  try {
-                    const [addr] = await Location.reverseGeocodeAsync({ latitude, longitude });
-                    setAddress(
-                      `${addr.name ? addr.name + ', ' : ''}` +
-                      `${addr.street ? addr.street + ', ' : ''}` +
-                      `${addr.postalCode ? addr.postalCode + ', ' : ''}` +
-                      `${addr.city ? addr.city + ', ' : ''}` +
-                      `${addr.region ? addr.region + ', ' : ''}` +
-                      `${addr.country ? addr.country : ''}`
-                    );
-                  } catch (error) {
-                    console.error("Reverse geocoding failed:", error);
-                  }
-                }}
-              >
-                {position && (
-                  <Marker coordinate={{ latitude: position[0], longitude: position[1] }} />
-                )}
-              </MapView>
-            </View>
+            <WebView
+              originWhitelist={['*']}
+              source={{
+                html: `
+                  <!DOCTYPE html>
+                  <html>
+                    <head>
+                      <title>OpenStreetMap</title>
+                      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                      <link
+                        rel="stylesheet"
+                        href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+                      />
+                      <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+                      <style>
+                        #map { height: 100%; width: 100%; }
+                        html, body { margin: 0; padding: 0; height: 100%; }
+                      </style>
+                    </head>
+                    <body>
+                      <div id="map"></div>
+                      <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                          var map = L.map('map').setView([17.385044, 78.486671], 13);
+                          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '&copy; OpenStreetMap contributors'
+                          }).addTo(map);
+
+                          var marker;
+
+                          map.on('click', function(e) {
+                            if (marker) {
+                              map.removeLayer(marker);
+                            }
+                            marker = L.marker(e.latlng).addTo(map);
+
+                            window.ReactNativeWebView.postMessage(JSON.stringify({
+                              lat: e.latlng.lat,
+                              lng: e.latlng.lng
+                            }));
+                          });
+                        });
+                      </script>
+                    </body>
+                  </html>
+                `
+              }}
+              injectedJavaScriptBeforeContentLoaded={''}
+              onMessage={async (event) => {
+                try {
+                  const data = JSON.parse(event.nativeEvent.data);
+                  const { lat, lng } = data;
+
+                  console.log('Clicked Coordinates:', lat, lng);
+                  setSelectedLocation({ latitude: lat, longitude: lng });
+
+                  const [addr] = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+                  const fullAddress = `${addr.name ? addr.name + ', ' : ''}${addr.street ? addr.street + ', ' : ''}${addr.postalCode ? addr.postalCode + ', ' : ''}${addr.city ? addr.city + ', ' : ''}${addr.region ? addr.region + ', ' : ''}${addr.country ? addr.country : ''}`;
+
+                  console.log('Full Address:', fullAddress);
+                  setAddress(fullAddress);
+                } catch (error) {
+                  console.error('Failed parsing map click:', error);
+                }
+              }}
+              style={{ flex: 1 }}
+            />
           </View>
+
           {address !== '' && (
             <Text style={{ marginTop: 10, fontSize: 16, color: '#000' }}>
               Selected Address: {address}
             </Text>
           )}
+
           <TouchableOpacity
-            style={styles.manual_backButton}
+            style={styles.getLocationButton}
             onPress={() => {
               if (!address) {
-                Alert.alert("Error", "Please enter an address.");
+                Alert.alert("Error", "Please select a location by clicking on the map.");
                 return;
               }
-              setLatestUpload((prev) => ({
+              setLatestUpload(prev => ({
                 ...prev,
                 location: address,
               }));
               setScreen('imageUpload');
             }}
-            >
+          >
             <ThemedText type="defaultSemiBold" style={styles.buttonText}>Done</ThemedText>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.manual_backButton}
+            onPress={() => setScreen('imageUpload')}
+          >
+            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.authBackButton} onPress={logout}>
+            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Logout</ThemedText>
+          </TouchableOpacity>
+
         </View>
       )}
+
       {screen === 'summary' && latestUpload.image && (
         <View style={styles.supervisorViewContainer}>
           <Image source={{ uri: latestUpload.image }} style={styles.previewImage} />
@@ -1019,88 +1251,152 @@ export default function HomeScreen()
       )}
 
       {/* Supervisor Dashboard */}
+      
       {screen === 'supervisorDashboard' && (
         <ImageBackground
           source={require('@/assets/images/potholeclick.png')}
-          style={styles.background}
+          style={{ flex: 1, width: '100%', height: '100%' }}
+          resizeMode="cover"
         >
           <ScrollView
-            contentContainerStyle={styles.supervisorDashboardContainer}
+            contentContainerStyle={{
+              padding: 20,
+              alignItems: 'center',
+              justifyContent: 'flex-start',
+            }}
             keyboardShouldPersistTaps="handled"
           >
+            {/* Title */}
             <ThemedText type="title" style={styles.authTitle}>
               Supervisor Dashboard
             </ThemedText>
 
             {/* Summary Cards */}
             <View style={styles.cardRow}>
-              <View style={[styles.dashboardCard, { backgroundColor: '#007bff' }]}>
+              <View style={[styles.dashboardCard, { backgroundColor: 'rgba(0, 123, 255, 0.8)' }]}>
                 <ThemedText type="defaultSemiBold" style={styles.cardTitle}>Total Reports</ThemedText>
-                <ThemedText style={styles.cardValue}>{totalReports}</ThemedText>
+                <ThemedText style={styles.cardValue}>{allReports.length}</ThemedText>
               </View>
 
-              <View style={[styles.dashboardCard, { backgroundColor: '#28a745' }]}>
+              <View style={[styles.dashboardCard, { backgroundColor: 'rgba(40, 167, 69, 0.8)' }]}>
                 <ThemedText type="defaultSemiBold" style={styles.cardTitle}>Pending</ThemedText>
                 <ThemedText style={styles.cardValue}>{pendingReports}</ThemedText>
               </View>
 
-              <View style={[styles.dashboardCard, { backgroundColor: '#dc3545' }]}>
+              <View style={[styles.dashboardCard, { backgroundColor: 'rgba(220, 53, 69, 0.8)' }]}>
                 <ThemedText type="defaultSemiBold" style={styles.cardTitle}>Urgent</ThemedText>
                 <ThemedText style={styles.cardValue}>{urgentReports}</ThemedText>
               </View>
             </View>
 
-            {/* Map Container */}
-            <View style={styles.mapContainer}>
+            {/* Map View */}
+            <View style={{ marginTop: 20, width: '100%', alignItems: 'center' }}>
               <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Map View</ThemedText>
-              <View style={{ height: 200, borderRadius: 10, overflow: 'hidden' }}>
-                <MapView
-                  style={{ flex: 1 }}
-                  initialRegion={{
-                    latitude: 37.78825,
-                    longitude: -122.4324,
-                    latitudeDelta: 0.0922,
-                    longitudeDelta: 0.0421,
+
+              <View style={styles.mapBox}>
+                <WebView
+                  originWhitelist={['*']}
+                  source={{
+                    html: `
+                      <!DOCTYPE html>
+                      <html>
+                        <head>
+                          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                          <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+                          <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+                          <style>
+                            html, body { height: 100%; margin: 0; padding: 0; }
+                            #map { width: 100%; height: 100%; }
+                          </style>
+                        </head>
+                        <body>
+                          <div id="map"></div>
+                          <script>
+                            var map = L.map('map').setView([17.385044, 78.486671], 13);
+                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                              attribution: '© OpenStreetMap contributors'
+                            }).addTo(map);
+                            L.marker([17.385044, 78.486671]).addTo(map)
+                              .bindPopup('Reported Location')
+                              .openPopup();
+                          </script>
+                        </body>
+                      </html>
+                    `
                   }}
-                >
-                  <Marker coordinate={{ latitude: 37.78825, longitude: -122.4324 }} />
-                </MapView>
+                  style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}
+                />
               </View>
             </View>
 
-            {/* Recent Reports */}
-            {/* <View style={styles.recentReportsBox}>
+            {/* All Recent Reports */}
+            <View style={{ width: '100%', marginTop: 20 }}>
               <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Recent Updated Reports</ThemedText>
-              <View style={styles.reportItem}>
-                <ThemedText>15:40 - Report #324 updated: Severity changed to High</ThemedText>
-              </View>
-              <View style={styles.reportItem}>
-                <ThemedText>14:10 - Report #318 updated: Marked as Resolved</ThemedText>
-              </View>
-              <View style={styles.reportItem}>
-                <ThemedText>13:22 - Report #310 updated: Assigned to Worker #45</ThemedText>
-              </View>
-            </View> */}
-            {recentReports.length > 0 && (
-              <View style={styles.recentReportsBox}>
-                <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Recent Updated Reports</ThemedText>
-                {recentReports.map((report, index) => (
-                  <View key={index} style={styles.reportItem}>
-                    <ThemedText>{report.time} - {report.message}</ThemedText>
-                  </View>
-                ))}
-              </View>
-            )}
+              {loadingReports ? (
+                <ActivityIndicator size="large" color="#007bff" style={{ marginTop: 20 }} />
+              ) : allReports.length > 0 ? (
+                allReports.map((report, index) => (
+                  <View key={report._id || index} style={styles.reportItem}>
+                    
+                    {/* Image Preview */}
+                    {report.imageUrl ? (
+                      <Image
+                        source={{ uri: `https://347a-183-82-237-45.ngrok-free.app${report.imageUrl}` }}
+                        style={{
+                          width: 60,
+                          height: 60,
+                          borderRadius: 10,
+                          marginRight: 12,
+                        }}
+                      />
+                    ) : (
+                      <View
+                        style={{
+                          width: 60,
+                          height: 60,
+                          borderRadius: 10,
+                          marginRight: 12,
+                          backgroundColor: '#ccc',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <ThemedText style={{ fontSize: 10 }}>No Image</ThemedText>
+                      </View>
+                    )}
 
+                    {/* Report Details */}
+                    <View style={{ flex: 1 }}>
+                      <ThemedText type="defaultSemiBold">📍 {report.location || '[No Location]'}</ThemedText>
+                      <ThemedText numberOfLines={2} ellipsizeMode="tail">📝 {report.summary || '[No Summary]'}</ThemedText>
+                      <ThemedText style={{ fontSize: 12, color: '#555' }}>
+                        🕑 {report.createdAt ? new Date(report.createdAt).toLocaleDateString('en-IN', { 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric', 
+                          hour: '2-digit', 
+                          minute: '2-digit'
+                        }) : '[No Date]'}
+                      </ThemedText>
+                    </View>
+
+                  </View>
+                ))
+              ) : (
+                <ThemedText>No reports found.</ThemedText>
+              )}
+            </View>
 
             {/* Back Button */}
-            <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('roleSelection')}>
+            <TouchableOpacity
+              style={[styles.authBackButton, { marginTop: 30 }]}
+              onPress={() => setScreen('roleSelection')}
+            >
               <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
             </TouchableOpacity>
           </ScrollView>
         </ImageBackground>
       )}
-
 
 
       {/* Supervisor View Page - Displays Image & Location */}
@@ -1116,6 +1412,10 @@ export default function HomeScreen()
           <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('supervisorDashboard')}>
             <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
           </TouchableOpacity>
+          <TouchableOpacity style={styles.authBackButton} onPress={logout}>
+            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Logout</ThemedText>
+          </TouchableOpacity>
+
         </View>
       )}
     </ImageBackground>
@@ -1125,12 +1425,30 @@ const styles = StyleSheet.create({
   background: { flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' },
   authContainer: { width: '50%', height: '50%', padding: 20, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   authButton: { backgroundColor: 'green', width: 120, height: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  authBackButton: { marginTop: 20, backgroundColor: 'red', paddingVertical: 10, paddingHorizontal: 40, borderRadius: 8, alignSelf: 'center' },
+  authBackButton: {
+    marginTop: 20,
+    backgroundColor: 'red',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    alignItems: 'center',
+    alignSelf: 'center',
+    minWidth: 180,
+  },
   roleButton: { backgroundColor: 'green', width: 140, height: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  submitButton: { marginTop: 10, backgroundColor: 'green', paddingVertical: 10, paddingHorizontal: 40, borderRadius: 8 },
+  submitButton: {
+    marginTop: 10,
+    backgroundColor: 'green',
+    paddingVertical: 12,
+    paddingHorizontal: 20, // smaller padding
+    borderRadius: 8,
+    alignItems: 'center',
+    alignSelf: 'center', // important: button will shrink to content
+    minWidth: 180, // or fixed width you prefer
+  },
   errorText: { color: 'white', marginBottom: 10, fontSize: 14 }, 
   startButton: { marginTop: 20, backgroundColor: 'green', paddingVertical: 12, paddingHorizontal: 40, borderRadius: 8 },
-  backButton: { marginTop: 20, backgroundColor: 'red', paddingVertical: 8, paddingHorizontal: 30, borderRadius: 6 },
+  backButton: { marginTop: 13, backgroundColor: 'red', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 6, width: '100%', alignItems: 'center',},
   tagline: { fontSize: 16, color: 'white', marginTop: 5, textAlign: 'center' },
   locationText: { marginTop: 10, fontSize: 16, color: 'white' }, 
   previewImage: { width: 200, height: 200, marginVertical: 10 },
@@ -1153,7 +1471,6 @@ const styles = StyleSheet.create({
   heading: {fontSize: 22,marginBottom: 16,textAlign: 'center',},
   manual_input: {borderWidth: 1,borderColor: '#ccc',borderRadius: 8,padding: 12,marginBottom: 16,color: '#000',},
   getLocationButton: { backgroundColor: '#16a34a',paddingVertical: 12,borderRadius: 8,alignItems: 'center', marginBottom: 16,},
-  mapContainer: {height: 400,width: 300,borderRadius: 8, overflow: 'hidden'},
   coordsText: {textAlign: 'center',fontSize: 14,marginBottom: 16,},
   manual_backButton: {backgroundColor: '#4b5563', paddingVertical: 12, borderRadius: 8, alignItems: 'center',},
   summaryText: {fontSize: 18,fontWeight: 'bold', color: '#007b8f', marginTop: 10, },
@@ -1171,13 +1488,12 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: 'column', justifyContent: 'flex-start',marginBottom: 10,},
   notificationBox: { flex: 1, backgroundColor: '#fff', padding: 15, borderRadius: 12,  marginRight: 10,  elevation: 2,},
   chartBox: {  flex: 1,  backgroundColor: '#fff', padding: 15, borderRadius: 12, marginLeft: 10, elevation: 2, },
-  sectionTitle: { fontSize: 18, marginBottom: 10, },
+  sectionTitle: { fontSize: 18, marginBottom: 10, color:'white', alignItems: 'center'},
   container: { padding: 24, backgroundColor: '#f3f4f6', alignItems: 'center',width: '60%', height: '50%',  borderRadius: 20, justifyContent: 'center',flex: 1},
   card: {shadowColor: '#000',backgroundColor: 'rgba(255,255,255,0.05)', width: '100%', maxWidth: 400, shadowRadius: 10, padding: 24, borderRadius: 16,  elevation: 5,shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 },},
   title: {marginBottom: 20,fontSize: 28, fontWeight: 'bold', color: 'white', textAlign: 'center', }, 
-  input: {borderColor: '#ccc',width: '100%', height: 50, paddingHorizontal: 50, marginVertical: 8,borderWidth: 1,marginBottom: 15,fontSize: 16,backgroundColor: 'white', borderRadius: 10, padding: 12, },
   button: {borderRadius: 10,backgroundColor: '#10b981', padding: 16,},
-  buttonText: { fontSize: 16,textAlign: 'center',  color: 'white', fontWeight: 'bold',},
+  buttonText: { fontSize: 16,textAlign: 'center',  color: 'white', fontWeight: 'bold', paddingVertical: 6, borderRadius: 8, width: '100%', alignItems: 'center', marginTop: 8,},
   label: { color: '#ddd', marginBottom: 6,fontSize: 16 },
   email: { fontSize: 14, marginBottom: 16, color: '#6b7280' },
   toggle: { color: '#38bdf8', textAlign: 'right', marginBottom: 20,},
@@ -1186,5 +1502,198 @@ const styles = StyleSheet.create({
   forgotPasswordcontainer: {flex: 1,alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingTop: 60,},
   forgotPasswordcard:{shadowColor: '#000',backgroundColor: 'rgba(0, 0, 0, 0.7)', width: '100%', maxWidth: 400, shadowRadius: 10, padding: 24, borderRadius: 16,  elevation: 5,shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 },},
   recentReportsBox: { backgroundColor: 'rgba(255, 255, 255, 0.9)', padding: 15, marginVertical: 20,marginHorizontal: 10, borderRadius: 10, shadowColor: '#000',  shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3, },
-  reportItem: { paddingVertical: 6, borderBottomColor: '#ccc', borderBottomWidth: 1,},
+  mapContainer: {
+    height: 300,
+    width: '100%',
+    backgroundColor: 'white',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5, // For Android shadow
+    marginTop: 20,
+    marginBottom: 20,
+    alignSelf: 'center',
+  },
+  mapContainersuper: {
+    marginTop: 20,
+    width: '100%',
+    alignItems: 'center',
+  },
+  mapBox: {
+    width: '90%',
+    height: 300,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: '#ffffff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5, // for Android shadow
+    marginBottom: 20,
+  },
+  reportItem: {
+    backgroundColor: 'rgba(23, 20, 20, 0.9)',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 15,
+    width: '100%',
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  // priorityDot: {
+  //   position: 'absolute',
+  //   top: 10,
+  //   left: 10,
+  //   width: 12,
+  //   height: 12,
+  //   borderRadius: 6,
+  // },
+  passwordInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',     // 💥 force full width
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 10,
+    backgroundColor: 'white',
+    marginBottom: 15,
+  },
+  // input: {
+          
+  //   height: 50,
+  //   paddingHorizontal: 15,
+  //   fontSize: 16,
+  //   color: 'black',
+  // },
+  input: {
+    flex: 1,                 // occupy full width
+    height: 50,
+    paddingHorizontal: 15,   // ✅ normal padding
+    fontSize: 16,
+    color: 'black',
+    backgroundColor: 'white',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ccc',
+    marginBottom: 15,
+  },  
+  eyeButton: {
+    padding: 10,         
+  },
+  eyeText: {
+    fontSize: 20,
+  },
+  signupScrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 30,
+  },
+  signupCard: {
+    width: '90%',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: 20,
+    borderRadius: 15,
+    alignItems: 'center',
+  },
+  signupTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 20,
+  },
+  signupInput: {
+    width: '100%',
+    backgroundColor: 'white',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    fontSize: 16,
+    marginBottom: 15,
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: 8,
+    marginBottom: 15,
+    paddingHorizontal: 12,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 16,
+  },
+  eyeIcon: {
+    fontSize: 22,
+  },
+  signupButton: {
+    backgroundColor: 'green',
+    paddingVertical: 12,
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  loginLinkBold: {
+    fontWeight: 'bold',
+    textDecorationLine: 'underline',
+  },
+  loginScrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 30,
+  },
+  loginCard: {
+    width: '90%',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: 20,
+    borderRadius: 15,
+    alignItems: 'center',
+  },
+  loginTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: 'white',
+    marginBottom: 20,
+  },
+  loginInput: {
+    width: '100%',
+    backgroundColor: 'white',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    fontSize: 16,
+    marginBottom: 15,
+  },
+  loginButton: {
+    backgroundColor: 'green',
+    paddingVertical: 12,
+    borderRadius: 8,
+    width: '100%',
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  errorMessage: {
+    color: 'red',
+    marginBottom: 10,
+    fontSize: 14,
+    textAlign: 'center',
+  },
+  loginLink: {
+    color: 'white',
+    marginTop: 10,
+    fontSize: 14,
+  },
 });
