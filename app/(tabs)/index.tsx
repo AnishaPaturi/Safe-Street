@@ -20,6 +20,8 @@ import { LocationGeocodedAddress } from 'expo-location';
 import { ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { ActivityIndicator } from 'react-native';
+import { RefreshControl } from 'react-native';
+
 
 
 export default function HomeScreen() 
@@ -31,7 +33,11 @@ export default function HomeScreen()
     location: string;
     summary: string;
     createdAt: string;
-  };  
+    status?: string;
+    latitude?: number;  
+    longitude?: number; 
+  };
+  
   const [screen, setScreen] = useState('home');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -74,6 +80,12 @@ export default function HomeScreen()
   const [allReports, setAllReports] = useState<Report[]>([]);
   const [loadingReports, setLoadingReports] = useState(true);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [needsRefresh, setNeedsRefresh] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+
+
 
  
   useEffect(() => {
@@ -118,7 +130,7 @@ export default function HomeScreen()
         } as any);
 
         console.log('📤 Sending request to Flask server...');
-        const aiResponse = await fetch('https://347a-183-82-237-45.ngrok-free.app/analyze', {
+        const aiResponse = await fetch('https://03e4-104-196-228-136.ngrok-free.app/analyze', {
             method: 'POST',
             body: formData,
             headers: {
@@ -223,7 +235,7 @@ export default function HomeScreen()
     }
   
     try {
-      const response = await fetch('https://347a-183-82-237-45.ngrok-free.app/api/auth/login', {
+      const response = await fetch('https://7756-152-57-145-40.ngrok-free.app/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -314,7 +326,7 @@ export default function HomeScreen()
     }
     
     try {
-      const response = await fetch('https://347a-183-82-237-45.ngrok-free.app/api/auth/signup', {
+      const response = await fetch('https://7756-152-57-145-40.ngrok-free.app/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -479,7 +491,7 @@ const sendOtpToEmail = async () => {
   }
 
   try {
-    const res = await fetch('https://347a-183-82-237-45.ngrok-free.app/api/send-otp', { // ✅ Corrected URL
+    const res = await fetch('https://7756-152-57-145-40.ngrok-free.app/api/send-otp', { // ✅ Corrected URL
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
@@ -500,7 +512,7 @@ const sendOtpToEmail = async () => {
   // Function to verify OTP
   const verifyOTP = async () => {
     try {
-      const res = await fetch('https://347a-183-82-237-45.ngrok-free.app/api/verify-otp', { 
+      const res = await fetch('https://7756-152-57-145-40.ngrok-free.app/api/verify-otp', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp }),
@@ -561,7 +573,10 @@ const sendOtpToEmail = async () => {
         return;
       }
   
-      // Step 1: Analyze
+      setUploading(true); // show spinner
+      setUploadProgress(0); // reset upload progress
+  
+      // Step 1: Analyze Image
       const analyzeFormData = new FormData();
       analyzeFormData.append('image', {
         uri: latestUpload.image,
@@ -569,7 +584,7 @@ const sendOtpToEmail = async () => {
         type: 'image/jpeg',
       } as any);
   
-      const analyzeRes = await fetch('https://347a-183-82-237-45.ngrok-free.app/analyze', {
+      const analyzeRes = await fetch('https://7756-152-57-145-40.ngrok-free.app/analyze', {
         method: 'POST',
         body: analyzeFormData,
       });
@@ -586,7 +601,7 @@ const sendOtpToEmail = async () => {
       const summary = analyzeData?.data?.summary || '[No summary returned]';
       setAiSummary(summary);
   
-      // Step 2: Upload to server
+      // Step 2: Upload to server with progress tracking
       const uploadFormData = new FormData();
       uploadFormData.append('userId', userId);
       uploadFormData.append('location', latestUpload.location);
@@ -597,28 +612,47 @@ const sendOtpToEmail = async () => {
         type: 'image/jpeg',
       } as any);
   
-      const uploadRes = await fetch('https://347a-183-82-237-45.ngrok-free.app/api/upload/new', {
-        method: 'POST',
-        headers: { Accept: 'application/json' },
-        body: uploadFormData,
+      // ✅ Replacing normal fetch here with XHR for progress
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', 'https://7756-152-57-145-40.ngrok-free.app/api/upload/new');
+  
+        xhr.setRequestHeader('Accept', 'application/json');
+  
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded * 100) / event.total);
+            console.log('Upload Progress:', percent);
+            setUploadProgress(percent);
+          }
+        };
+  
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            console.log('✅ Upload success response:', xhr.responseText);
+            resolve();
+          } else {
+            reject(new Error(`Upload failed: ${xhr.status}`));
+          }
+        };
+  
+        xhr.onerror = () => {
+          reject(new Error('Network error'));
+        };
+  
+        xhr.send(uploadFormData);
       });
   
-      const uploadText = await uploadRes.text();
-      let uploadData;
-      try {
-        uploadData = JSON.parse(uploadText);
-      } catch (error) {
-        console.error('Invalid upload response:', uploadText);
-        throw new Error('Upload failed: Invalid server response');
-      }
-  
-      if (!uploadRes.ok) {
-        throw new Error(uploadData.error || 'Upload failed');
-      }
-  
-      console.log('✅ Upload success:', uploadData);
       Alert.alert("Success 🎉", "Upload sent successfully to Supervisor!");
-      setScreen('workerDashboard');
+  
+      // ✅ Clear form after upload
+      setImage(null);
+      setAddress('');
+      setLocation(null);
+      setLatestUpload({ image: null, location: null, date: '', coordinates: null });
+      setNeedsRefresh(true); // ✅ Auto refresh supervisor dashboard
+  
+      setScreen('workerDashboard'); // Move to worker dashboard
   
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -628,20 +662,11 @@ const sendOtpToEmail = async () => {
         console.error('Unknown Upload Error');
         Alert.alert('Upload Failed ❌', 'An unknown error occurred.');
       }
+    } finally {
+      setUploading(false);
     }
   };
   
-    
-  
-  const handleNewReport = (isUrgent: boolean) => {
-    setTotalReports(prev => prev + 1);
-    setPendingReports(prev => prev + 1);  // Mark as pending by default
-  
-    if (isUrgent) {
-      setUrgentReports(prev => prev + 1); // Only increment if the report is urgent
-    }
-  };
-
   // Function to reset password
   const resetPassword = async () => {
     if (newPassword.length < 8 || !/\d/.test(newPassword)) {
@@ -656,7 +681,7 @@ const sendOtpToEmail = async () => {
     }
 
     try {
-      const res = await fetch('https://347a-183-82-237-45.ngrok-free.app/api/reset-password', {
+      const res = await fetch('https://7756-152-57-145-40.ngrok-free.app/api/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, newPassword }),
@@ -678,18 +703,23 @@ const sendOtpToEmail = async () => {
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const res = await fetch('https://347a-183-82-237-45.ngrok-free.app/api/upload/all');
+        const res = await fetch('https://7756-152-57-145-40.ngrok-free.app/api/upload/all');
         const data = await res.json();
         setAllReports(data);
       } catch (err) {
         console.error('Failed fetching reports:', err);
       } finally {
         setLoadingReports(false);
+        setNeedsRefresh(false); // ✅ after fetching, reset flag
       }
     };
   
-    fetchReports();
-  }, []);
+    if (screen === 'supervisorDashboard' && needsRefresh) {
+      setLoadingReports(true);
+      fetchReports();
+    }
+  }, [screen, needsRefresh]);
+  
   
 
   const logout = async () => {
@@ -1241,9 +1271,16 @@ const sendOtpToEmail = async () => {
           <Text style={{ color: 'white', fontSize: 16 }}>Message: {message}</Text>
           
           {/* 👇 Optional, keep if you want metadata line */}
-          <TouchableOpacity style={styles.uploadButton} onPress={uploadToServer}>
+          {/* <TouchableOpacity style={styles.uploadButton} onPress={uploadToServer}>
             <ThemedText type="defaultSemiBold" style={styles.buttonText}>Upload</ThemedText>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
+          {uploading ? (
+            <ActivityIndicator size="large" color="#00ff00" style={{ marginTop: 20 }} />
+          ) : (
+            <TouchableOpacity style={styles.uploadButton} onPress={uploadToServer}>
+              <ThemedText type="defaultSemiBold" style={styles.buttonText}>Upload</ThemedText>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('home')}>
             <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
           </TouchableOpacity>
@@ -1251,7 +1288,6 @@ const sendOtpToEmail = async () => {
       )}
 
       {/* Supervisor Dashboard */}
-      
       {screen === 'supervisorDashboard' && (
         <ImageBackground
           source={require('@/assets/images/potholeclick.png')}
@@ -1260,163 +1296,249 @@ const sendOtpToEmail = async () => {
         >
           <ScrollView
             contentContainerStyle={{
-              padding: 20,
+              paddingVertical: 20,
               alignItems: 'center',
               justifyContent: 'flex-start',
             }}
             keyboardShouldPersistTaps="handled"
+            refreshControl={  /* 🆕 Pull to refresh added */
+              <RefreshControl
+                refreshing={loadingReports}
+                onRefresh={async () => {
+                  setLoadingReports(true);
+                  try {
+                    const res = await fetch('https://7756-152-57-145-40.ngrok-free.app/api/upload/all');
+                    const data = await res.json();
+                    setAllReports(data);
+                  } catch (err) {
+                    console.error('Failed fetching reports:', err);
+                  } finally {
+                    setLoadingReports(false);
+                  }
+                }}
+              />
+            }
           >
-            {/* Title */}
-            <ThemedText type="title" style={styles.authTitle}>
-              Supervisor Dashboard
-            </ThemedText>
+            <View style={styles.supervisorDashboardContainer}>
+              {/* Title */}
+              <ThemedText type="title" style={styles.authTitle}>
+                Supervisor Dashboard
+              </ThemedText>
 
-            {/* Summary Cards */}
-            <View style={styles.cardRow}>
-              <View style={[styles.dashboardCard, { backgroundColor: 'rgba(0, 123, 255, 0.8)' }]}>
-                <ThemedText type="defaultSemiBold" style={styles.cardTitle}>Total Reports</ThemedText>
-                <ThemedText style={styles.cardValue}>{allReports.length}</ThemedText>
+              {/* Summary Cards */}
+              <View style={styles.cardRow}>
+                <View style={[styles.dashboardCard, { backgroundColor: 'rgba(0, 123, 255, 0.8)' }]}>
+                  <ThemedText type="defaultSemiBold" style={styles.cardTitle}>Total Reports</ThemedText>
+                  <ThemedText style={styles.cardValue}>{allReports.length}</ThemedText>
+                </View>
+
+                <View style={[styles.dashboardCard, { backgroundColor: 'rgba(40, 167, 69, 0.8)' }]}>
+                  <ThemedText type="defaultSemiBold" style={styles.cardTitle}>Pending</ThemedText>
+                  <ThemedText style={styles.cardValue}>{pendingReports}</ThemedText>
+                </View>
+
+                <View style={[styles.dashboardCard, { backgroundColor: 'rgba(220, 53, 69, 0.8)' }]}>
+                  <ThemedText type="defaultSemiBold" style={styles.cardTitle}>Urgent</ThemedText>
+                  <ThemedText style={styles.cardValue}>{urgentReports}</ThemedText>
+                </View>
               </View>
 
-              <View style={[styles.dashboardCard, { backgroundColor: 'rgba(40, 167, 69, 0.8)' }]}>
-                <ThemedText type="defaultSemiBold" style={styles.cardTitle}>Pending</ThemedText>
-                <ThemedText style={styles.cardValue}>{pendingReports}</ThemedText>
+              {/* Map View */}
+              <View style={{ marginTop: 20, width: '100%', alignItems: 'center' }}>
+                <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
+                  Map View
+                </ThemedText>
+
+                <View style={styles.mapBox}>
+                  <WebView
+                    originWhitelist={['*']}
+                    source={{
+                      html: `
+                        <!DOCTYPE html>
+                        <html>
+                          <head>
+                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+                            <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+                            <style> html, body { height: 100%; margin: 0; padding: 0; } #map { width: 100%; height: 100%; } </style>
+                          </head>
+                          <body>
+                            <div id="map"></div>
+                            <script>
+                              var map = L.map('map').setView([${selectedReport?.latitude || 17.385044}, ${selectedReport?.longitude || 78.486671}], 13);
+                              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                                attribution: '© OpenStreetMap contributors'
+                              }).addTo(map);
+                              L.marker([${selectedReport?.latitude || 17.385044}, ${selectedReport?.longitude || 78.486671}]).addTo(map)
+                                .bindPopup('Reported Location')
+                                .openPopup();
+                            </script>
+                          </body>
+                        </html>
+                      `
+                    }}
+                    style={{ width: '100%', height: '100%' }}
+                  />
+                </View>
               </View>
 
-              <View style={[styles.dashboardCard, { backgroundColor: 'rgba(220, 53, 69, 0.8)' }]}>
-                <ThemedText type="defaultSemiBold" style={styles.cardTitle}>Urgent</ThemedText>
-                <ThemedText style={styles.cardValue}>{urgentReports}</ThemedText>
-              </View>
-            </View>
+              {/* All Reports */}
+              <View style={{ width: '100%', marginTop: 20 }}>
+                <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>
+                  Recent Updated Reports
+                </ThemedText>
 
-            {/* Map View */}
-            <View style={{ marginTop: 20, width: '100%', alignItems: 'center' }}>
-              <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Map View</ThemedText>
+                {loadingReports ? (
+                  <ActivityIndicator size="large" color="#007bff" style={{ marginTop: 20 }} />
+                ) : allReports.length > 0 ? (
+                  allReports.map((report, index) => (
+                    <TouchableOpacity
+                      key={report._id || index}
+                      style={styles.reportItem}
+                      onPress={() => {
+                        setSelectedReport(report);
+                        setScreen('supervisorReportView');
+                      }}
+                    >
+                      {/* Report Card Content */}
+                      {report.imageUrl ? (
+                        <Image
+                          source={{ uri: `https://7756-152-57-145-40.ngrok-free.app${report.imageUrl}` }}
+                          style={{
+                            width: 60,
+                            height: 60,
+                            borderRadius: 10,
+                            marginRight: 12,
+                          }}
+                        />
+                      ) : (
+                        <View
+                          style={{
+                            width: 60,
+                            height: 60,
+                            borderRadius: 10,
+                            marginRight: 12,
+                            backgroundColor: '#ccc',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <ThemedText style={{ fontSize: 10 }}>No Image</ThemedText>
+                        </View>
+                      )}
 
-              <View style={styles.mapBox}>
-                <WebView
-                  originWhitelist={['*']}
-                  source={{
-                    html: `
-                      <!DOCTYPE html>
-                      <html>
-                        <head>
-                          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                          <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
-                          <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-                          <style>
-                            html, body { height: 100%; margin: 0; padding: 0; }
-                            #map { width: 100%; height: 100%; }
-                          </style>
-                        </head>
-                        <body>
-                          <div id="map"></div>
-                          <script>
-                            var map = L.map('map').setView([17.385044, 78.486671], 13);
-                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                              attribution: '© OpenStreetMap contributors'
-                            }).addTo(map);
-                            L.marker([17.385044, 78.486671]).addTo(map)
-                              .bindPopup('Reported Location')
-                              .openPopup();
-                          </script>
-                        </body>
-                      </html>
-                    `
-                  }}
-                  style={{ width: '100%', height: '100%', backgroundColor: 'transparent' }}
-                />
-              </View>
-            </View>
-
-            {/* All Recent Reports */}
-            <View style={{ width: '100%', marginTop: 20 }}>
-              <ThemedText type="defaultSemiBold" style={styles.sectionTitle}>Recent Updated Reports</ThemedText>
-              {loadingReports ? (
-                <ActivityIndicator size="large" color="#007bff" style={{ marginTop: 20 }} />
-              ) : allReports.length > 0 ? (
-                allReports.map((report, index) => (
-                  <View key={report._id || index} style={styles.reportItem}>
-                    
-                    {/* Image Preview */}
-                    {report.imageUrl ? (
-                      <Image
-                        source={{ uri: `https://347a-183-82-237-45.ngrok-free.app${report.imageUrl}` }}
-                        style={{
-                          width: 60,
-                          height: 60,
-                          borderRadius: 10,
-                          marginRight: 12,
-                        }}
-                      />
-                    ) : (
-                      <View
-                        style={{
-                          width: 60,
-                          height: 60,
-                          borderRadius: 10,
-                          marginRight: 12,
-                          backgroundColor: '#ccc',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <ThemedText style={{ fontSize: 10 }}>No Image</ThemedText>
+                      <View style={{ flex: 1 }}>
+                        <ThemedText type="defaultSemiBold">📍 {report.location || '[No Location]'}</ThemedText>
+                        <ThemedText numberOfLines={2} ellipsizeMode="tail">
+                          📝 {report.summary || '[No Summary]'}
+                        </ThemedText>
+                        <ThemedText style={{ fontSize: 12, color: '#555' }}>
+                          🕑 {report.createdAt ? new Date(report.createdAt).toLocaleString('en-IN') : '[No Date]'}
+                        </ThemedText>
                       </View>
-                    )}
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <ThemedText>No reports found.</ThemedText>
+                )}
+              </View>
 
-                    {/* Report Details */}
-                    <View style={{ flex: 1 }}>
-                      <ThemedText type="defaultSemiBold">📍 {report.location || '[No Location]'}</ThemedText>
-                      <ThemedText numberOfLines={2} ellipsizeMode="tail">📝 {report.summary || '[No Summary]'}</ThemedText>
-                      <ThemedText style={{ fontSize: 12, color: '#555' }}>
-                        🕑 {report.createdAt ? new Date(report.createdAt).toLocaleDateString('en-IN', { 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric', 
-                          hour: '2-digit', 
-                          minute: '2-digit'
-                        }) : '[No Date]'}
-                      </ThemedText>
-                    </View>
-
-                  </View>
-                ))
-              ) : (
-                <ThemedText>No reports found.</ThemedText>
-              )}
+              {/* Back Button */}
+              <TouchableOpacity
+                style={[styles.authBackButton, { marginTop: 30 }]}
+                onPress={() => setScreen('roleSelection')}
+              >
+                <ThemedText type="defaultSemiBold" style={styles.buttonText}>
+                  Back
+                </ThemedText>
+              </TouchableOpacity>
             </View>
-
-            {/* Back Button */}
-            <TouchableOpacity
-              style={[styles.authBackButton, { marginTop: 30 }]}
-              onPress={() => setScreen('roleSelection')}
-            >
-              <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
-            </TouchableOpacity>
           </ScrollView>
         </ImageBackground>
       )}
 
-
       {/* Supervisor View Page - Displays Image & Location */}
-      {screen === 'supervisorView' && latestUpload.image && (
-        <View style={styles.supervisorViewContainer}>
-          <Image source={{ uri: latestUpload.image }} style={styles.previewImage} />
-          <Text style={styles.locationText}>Location: {latestUpload.location}</Text>
-          {/* <TouchableOpacity 
-            style={styles.authBackButton} 
-            onPress={() => setScreen('supervisorDashboard')}
-          >
-          </TouchableOpacity> */}
-          <TouchableOpacity style={styles.authBackButton} onPress={() => setScreen('supervisorDashboard')}>
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.authBackButton} onPress={logout}>
-            <ThemedText type="defaultSemiBold" style={styles.buttonText}>Logout</ThemedText>
-          </TouchableOpacity>
+      {screen === 'supervisorReportView' && selectedReport && (
+        <ScrollView contentContainerStyle={{ alignItems: 'center', padding: 20 }}>
+          <View style={styles.supervisorViewContainer}>
+            <ThemedText type="title" style={styles.authTitle}>Report Details</ThemedText>
 
-        </View>
+            {/* Image */}
+            {selectedReport.imageUrl ? (
+              <Image
+                source={{ uri: `https://7756-152-57-145-40.ngrok-free.app${selectedReport.imageUrl}` }}
+                style={{ width: 250, height: 250, borderRadius: 15, marginBottom: 20 }}
+                resizeMode="cover"
+              />
+            ) : (
+              <ThemedText>No Image Available</ThemedText>
+            )}
+
+            {/* Location */}
+            <ThemedText type="defaultSemiBold" style={styles.locationText}>📍 Location:</ThemedText>
+            <Text style={{ color: 'white', textAlign: 'center', marginBottom: 10 }}>
+              {selectedReport.location || 'Not Available'}
+            </Text>
+
+            {/* Summary */}
+            <ThemedText type="defaultSemiBold" style={styles.locationText}>📝 Summary:</ThemedText>
+            <Text style={{ color: 'white', textAlign: 'center', marginBottom: 10, paddingHorizontal: 20 }}>
+              {selectedReport.summary || 'No Summary'}
+            </Text>
+
+            {/* Date */}
+            <ThemedText type="defaultSemiBold" style={styles.locationText}>🕑 Date:</ThemedText>
+            <Text style={{ color: 'white', textAlign: 'center', marginBottom: 20 }}>
+              {selectedReport.createdAt ? new Date(selectedReport.createdAt).toLocaleString('en-IN') : 'Unknown'}
+            </Text>
+
+            {/* Status */}
+            <ThemedText type="defaultSemiBold" style={styles.locationText}>📌 Status:</ThemedText>
+            <Text style={{ color: 'white', textAlign: 'center', marginBottom: 20 }}>
+              {selectedReport.status || 'Pending'}
+            </Text>
+
+            {/* Resolve Button */}
+            {selectedReport.status !== 'Resolved' && (
+              <TouchableOpacity
+                style={[styles.submitButton, { backgroundColor: 'green', marginBottom: 20 }]}
+                onPress={async () => {
+                  try {
+                    const res = await fetch(`https://7756-152-57-145-40.ngrok-free.app/api/upload/resolve/${selectedReport._id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                    });
+
+                    const data = await res.json();
+                    if (res.ok) {
+                      alert('Report marked as Resolved ✅');
+                      setScreen('supervisorDashboard');
+                      setSelectedReport(null);
+                    } else {
+                      alert('Failed to mark as Resolved ❌');
+                    }
+                  } catch (error) {
+                    console.error(error);
+                    alert('Error marking report.');
+                  }
+                }}
+              >
+                <ThemedText type="defaultSemiBold" style={styles.buttonText}>Mark as Resolved</ThemedText>
+              </TouchableOpacity>
+            )}
+
+            {/* Back Button */}
+            <TouchableOpacity
+              style={styles.authBackButton}
+              onPress={() => {
+                setScreen('supervisorDashboard');
+                setSelectedReport(null);
+              }}
+            >
+              <ThemedText type="defaultSemiBold" style={styles.buttonText}>Back</ThemedText>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
       )}
     </ImageBackground>
   );
@@ -1425,27 +1547,9 @@ const styles = StyleSheet.create({
   background: { flex: 1, justifyContent: 'center', alignItems: 'center', width: '100%', height: '100%' },
   authContainer: { width: '50%', height: '50%', padding: 20, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   authButton: { backgroundColor: 'green', width: 120, height: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  authBackButton: {
-    marginTop: 20,
-    backgroundColor: 'red',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignItems: 'center',
-    alignSelf: 'center',
-    minWidth: 180,
-  },
+  authBackButton: { marginTop: 20, backgroundColor: 'red', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8, alignItems: 'center', alignSelf: 'center', minWidth: 180,},
   roleButton: { backgroundColor: 'green', width: 140, height: 50, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  submitButton: {
-    marginTop: 10,
-    backgroundColor: 'green',
-    paddingVertical: 12,
-    paddingHorizontal: 20, // smaller padding
-    borderRadius: 8,
-    alignItems: 'center',
-    alignSelf: 'center', // important: button will shrink to content
-    minWidth: 180, // or fixed width you prefer
-  },
+  submitButton: { marginTop: 10, backgroundColor: 'green', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8, alignItems: 'center', alignSelf: 'center', minWidth: 180, },
   errorText: { color: 'white', marginBottom: 10, fontSize: 14 }, 
   startButton: { marginTop: 20, backgroundColor: 'green', paddingVertical: 12, paddingHorizontal: 40, borderRadius: 8 },
   backButton: { marginTop: 13, backgroundColor: 'red', paddingVertical: 8, paddingHorizontal: 20, borderRadius: 6, width: '100%', alignItems: 'center',},
@@ -1463,7 +1567,7 @@ const styles = StyleSheet.create({
   SignupContainer: {width: '90%', maxWidth: 400, padding: 20, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
   workerDashboardContainer: {width: '90%', maxWidth: 400, padding: 20, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
   imageUploadContainer: {width: '90%', maxWidth: 400, padding: 20, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
-  supervisorViewContainer: {width: '90%', maxWidth: 400, padding: 20, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
+  supervisorViewContainer: {width: '90%', maxWidth: 400, padding: 20, borderRadius: 15, backgroundColor: 'rgba(0, 0, 0, 0.7)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000',shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
   linkText: {color: 'white'},
   overlay: {flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.4)', width: '100%', height: '100%',},
   videoBackground: {position: 'absolute',top: 0,left: 0,right: 0,bottom: 0,width: '100%',height: '100%',zIndex: -1,},
@@ -1478,9 +1582,22 @@ const styles = StyleSheet.create({
   boldText: { fontWeight: 'bold', },
   backButtonContainer: { position: 'absolute', top: 20, left: 20, },
   buttonContainer: { flexDirection: 'column',justifyContent: 'center',alignItems: 'center',gap: 15,marginBottom: 20,},
-  supervisorDashboardContainer: { padding: 20, backgroundColor: '#f4f4f4', flexGrow: 1, width: '90%', maxWidth: 400, borderRadius: 15, alignItems: 'center', justifyContent: 'center',  shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
-  cardRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20,},
-  dashboardCard: { flex: 1, borderRadius: 12, padding: 15, marginHorizontal: 5,},
+  supervisorDashboardContainer: { 
+    padding: 20, 
+    backgroundColor: 'rgba(255,255,255,0.85)', 
+    flexGrow: 1, 
+    width: '95%',
+    maxWidth: 500, 
+    borderRadius: 15, 
+    alignItems: 'center', 
+    justifyContent: 'flex-start', 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 4 }, 
+    shadowOpacity: 0.3, 
+    shadowRadius: 5,
+  },  
+  cardRow: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: 20, },
+  dashboardCard: { flexBasis: '30%', minWidth: 100, borderRadius: 12, padding: 15, margin: 5,},
   cardTitle: { color: '#fff', fontSize: 16,},
   cardValue: {color: '#fff', fontSize: 24, fontWeight: 'bold', marginTop: 5,},
   authTitle: { fontSize: 28, fontWeight: 'bold', marginBottom: 20, color: 'white', textAlign: 'center',},
@@ -1502,54 +1619,11 @@ const styles = StyleSheet.create({
   forgotPasswordcontainer: {flex: 1,alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20, paddingTop: 60,},
   forgotPasswordcard:{shadowColor: '#000',backgroundColor: 'rgba(0, 0, 0, 0.7)', width: '100%', maxWidth: 400, shadowRadius: 10, padding: 24, borderRadius: 16,  elevation: 5,shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 },},
   recentReportsBox: { backgroundColor: 'rgba(255, 255, 255, 0.9)', padding: 15, marginVertical: 20,marginHorizontal: 10, borderRadius: 10, shadowColor: '#000',  shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 3, },
-  mapContainer: {
-    height: 300,
-    width: '100%',
-    backgroundColor: 'white',
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 5, // For Android shadow
-    marginTop: 20,
-    marginBottom: 20,
-    alignSelf: 'center',
-  },
-  mapContainersuper: {
-    marginTop: 20,
-    width: '100%',
-    alignItems: 'center',
-  },
-  mapBox: {
-    width: '90%',
-    height: 300,
-    borderRadius: 20,
-    overflow: 'hidden',
-    backgroundColor: '#ffffff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 5,
-    elevation: 5, // for Android shadow
-    marginBottom: 20,
-  },
-  reportItem: {
-    backgroundColor: 'rgba(23, 20, 20, 0.9)',
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 15,
-    width: '100%',
-    position: 'relative',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
+  mapContainer: { height: 300, width: '100%', backgroundColor: 'white', borderRadius: 20, overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 5, marginTop: 20, marginBottom: 20, alignSelf: 'center',},
+  mapContainersuper: { marginTop: 20, width: '100%', alignItems: 'center',},
+  mapBox: { width: '100%', height: 300, borderRadius: 12, overflow: 'hidden', marginTop: 10, backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 2 },   shadowOpacity: 0.2,
+  shadowRadius: 4, elevation: 3, },
+  reportItem: { backgroundColor: 'rgba(23, 20, 20, 0.9)', borderRadius: 12, padding: 12, marginTop: 15, width: '100%', position: 'relative', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4, elevation: 4, flexDirection: 'row', alignItems: 'center',},
   // priorityDot: {
   //   position: 'absolute',
   //   top: 10,
@@ -1558,16 +1632,7 @@ const styles = StyleSheet.create({
   //   height: 12,
   //   borderRadius: 6,
   // },
-  passwordInputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',     // 💥 force full width
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 10,
-    backgroundColor: 'white',
-    marginBottom: 15,
-  },
+  passwordInputContainer: { flexDirection: 'row', alignItems: 'center', width: '100%', borderWidth: 1, borderColor: '#ccc', borderRadius: 10, backgroundColor: 'white', marginBottom: 15,},
   // input: {
           
   //   height: 50,
@@ -1575,125 +1640,23 @@ const styles = StyleSheet.create({
   //   fontSize: 16,
   //   color: 'black',
   // },
-  input: {
-    flex: 1,                 // occupy full width
-    height: 50,
-    paddingHorizontal: 15,   // ✅ normal padding
-    fontSize: 16,
-    color: 'black',
-    backgroundColor: 'white',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    marginBottom: 15,
-  },  
-  eyeButton: {
-    padding: 10,         
-  },
-  eyeText: {
-    fontSize: 20,
-  },
-  signupScrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 30,
-  },
-  signupCard: {
-    width: '90%',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 20,
-    borderRadius: 15,
-    alignItems: 'center',
-  },
-  signupTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 20,
-  },
-  signupInput: {
-    width: '100%',
-    backgroundColor: 'white',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    fontSize: 16,
-    marginBottom: 15,
-  },
-  passwordContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'white',
-    borderRadius: 8,
-    marginBottom: 15,
-    paddingHorizontal: 12,
-  },
-  passwordInput: {
-    flex: 1,
-    paddingVertical: 10,
-    fontSize: 16,
-  },
-  eyeIcon: {
-    fontSize: 22,
-  },
-  signupButton: {
-    backgroundColor: 'green',
-    paddingVertical: 12,
-    borderRadius: 8,
-    width: '100%',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  loginLinkBold: {
-    fontWeight: 'bold',
-    textDecorationLine: 'underline',
-  },
-  loginScrollContainer: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 30,
-  },
-  loginCard: {
-    width: '90%',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 20,
-    borderRadius: 15,
-    alignItems: 'center',
-  },
-  loginTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 20,
-  },
-  loginInput: {
-    width: '100%',
-    backgroundColor: 'white',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 8,
-    fontSize: 16,
-    marginBottom: 15,
-  },
-  loginButton: {
-    backgroundColor: 'green',
-    paddingVertical: 12,
-    borderRadius: 8,
-    width: '100%',
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  errorMessage: {
-    color: 'red',
-    marginBottom: 10,
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  loginLink: {
-    color: 'white',
-    marginTop: 10,
-    fontSize: 14,
-  },
+  input: { flex: 1, height: 50, paddingHorizontal: 15, fontSize: 16, color: 'black', backgroundColor: 'white', borderRadius: 10, borderWidth: 1, borderColor: '#ccc', marginBottom: 15,},  
+  eyeButton: { padding: 10,},
+  eyeText: { fontSize: 20,},
+  signupScrollContainer: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 30,},
+  signupCard: { width: '90%', backgroundColor: 'rgba(0,0,0,0.7)', padding: 20, borderRadius: 15, alignItems: 'center',},
+  signupTitle: { fontSize: 24, fontWeight: 'bold', color: 'white', marginBottom: 20,},
+  signupInput: { width: '100%', backgroundColor: 'white', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, fontSize: 16, marginBottom: 15,},
+  passwordContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'white', borderRadius: 8,  marginBottom: 15, paddingHorizontal: 12,},
+  passwordInput: { flex: 1, paddingVertical: 10, fontSize: 16,},
+  eyeIcon: { fontSize: 22,},
+  signupButton: { backgroundColor: 'green', paddingVertical: 12, borderRadius: 8, width: '100%', alignItems: 'center', marginTop: 10,},
+  loginLinkBold: { fontWeight: 'bold', textDecorationLine: 'underline', },
+  loginScrollContainer: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 30,},
+  loginCard: { width: '90%', backgroundColor: 'rgba(0,0,0,0.7)', padding: 20, borderRadius: 15, alignItems: 'center',},
+  loginTitle: { fontSize: 24, fontWeight: 'bold', color: 'white', marginBottom: 20,},
+  loginInput: { width: '100%', backgroundColor: 'white', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, fontSize: 16, marginBottom: 15,},
+  loginButton: { backgroundColor: 'green', paddingVertical: 12, borderRadius: 8, width: '100%', alignItems: 'center', marginTop: 10,},
+  errorMessage: { color: 'red', marginBottom: 10, fontSize: 14,textAlign: 'center',},
+  loginLink: { color: 'white', marginTop: 10, fontSize: 14, },
 });

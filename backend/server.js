@@ -119,7 +119,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     form.append('image', fs.createReadStream(req.file.path));
 
     console.log("📤 Sending to Flask...");
-    const flaskURL = 'https://4426-35-245-8-225.ngrok-free.app/analyze';
+    const flaskURL = 'https://03e4-104-196-228-136.ngrok-free.app/analyze';
     console.log("📡 Sending POST request to:", flaskURL);
 
     const response = await axios.post(flaskURL, form, {
@@ -182,11 +182,40 @@ app.post('/api/upload/new', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
+    // ✅ Fetch latitude and longitude using OpenStreetMap (Nominatim)
+    let latitude = null;
+    let longitude = null;
+
+    try {
+      const geocodeRes = await axios.get('https://nominatim.openstreetmap.org/search', {
+        params: {
+          q: location,
+          format: 'json',
+          limit: 1,
+        },
+        headers: {
+          'User-Agent': 'SafeStreetApp/1.0 (youremail@example.com)', // required by OpenStreetMap
+        }
+      });
+
+      if (geocodeRes.data.length > 0) {
+        latitude = parseFloat(geocodeRes.data[0].lat);
+        longitude = parseFloat(geocodeRes.data[0].lon);
+        console.log('📍 Geocoded Location:', latitude, longitude);
+      }
+    } catch (geoErr) {
+      console.error('Failed to geocode location:', geoErr.message);
+    }
+
+    // ✅ Save everything to database
     const newUpload = new Upload({
       userId,
       imageUrl: req.file ? `/uploads/${req.file.filename}` : '',
       location,
       summary,
+      latitude,   // save fetched latitude
+      longitude,  // save fetched longitude
+      status: 'Pending', // default status
     });
 
     await newUpload.save();
@@ -196,14 +225,17 @@ app.post('/api/upload/new', upload.single('image'), async (req, res) => {
       data: {
         summary: newUpload.summary,
         address: newUpload.location,
+        latitude: newUpload.latitude,
+        longitude: newUpload.longitude,
         imageUrl: newUpload.imageUrl,
         _id: newUpload._id,
         createdAt: newUpload.createdAt,
       },
     };
-    console.log('📤 Server Response:', responseData);
 
+    console.log('📤 Server Response:', responseData);
     res.json(responseData);
+
   } catch (err) {
     console.error('Upload save error:', err);
     res.status(500).json({ error: 'Failed to save upload' });
@@ -220,6 +252,27 @@ app.get('/api/upload/all', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch uploads' });
   }
 });
+
+// ✅ Mark Report as Resolved
+app.put('/api/upload/resolve/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const upload = await Upload.findById(id);
+
+    if (!upload) {
+      return res.status(404).json({ error: 'Report not found' });
+    }
+
+    upload.status = 'Resolved';
+    await upload.save();
+
+    res.json({ message: 'Report marked as resolved ✅' });
+  } catch (error) {
+    console.error('Error resolving report:', error);
+    res.status(500).json({ error: 'Failed to resolve report' });
+  }
+});
+
 
 
 
