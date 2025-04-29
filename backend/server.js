@@ -22,6 +22,8 @@ const analyzeRoutes = require('./routes/analyze');
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static('uploads'));
+
 
 // In-memory store for OTPs
 let otpStore = {};
@@ -119,7 +121,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     form.append('image', fs.createReadStream(req.file.path));
 
     console.log("📤 Sending to Flask...");
-    const flaskURL = 'https://03e4-104-196-228-136.ngrok-free.app/analyze';
+    const flaskURL = 'https://fc82-35-204-125-210.ngrok-free.app/analyze';
     console.log("📡 Sending POST request to:", flaskURL);
 
     const response = await axios.post(flaskURL, form, {

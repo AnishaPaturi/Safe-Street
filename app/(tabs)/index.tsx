@@ -130,7 +130,7 @@ export default function HomeScreen()
         } as any);
 
         console.log('📤 Sending request to Flask server...');
-        const aiResponse = await fetch('https://03e4-104-196-228-136.ngrok-free.app/analyze', {
+        const aiResponse = await fetch('https://b52a-183-82-237-45.ngrok-free.app/analyze', {
             method: 'POST',
             body: formData,
             headers: {
@@ -235,7 +235,7 @@ export default function HomeScreen()
     }
   
     try {
-      const response = await fetch('https://7756-152-57-145-40.ngrok-free.app/api/auth/login', {
+      const response = await fetch('https://b52a-183-82-237-45.ngrok-free.app/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -326,7 +326,7 @@ export default function HomeScreen()
     }
     
     try {
-      const response = await fetch('https://7756-152-57-145-40.ngrok-free.app/api/auth/signup', {
+      const response = await fetch('https://b52a-183-82-237-45.ngrok-free.app/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -491,7 +491,7 @@ const sendOtpToEmail = async () => {
   }
 
   try {
-    const res = await fetch('https://7756-152-57-145-40.ngrok-free.app/api/send-otp', { // ✅ Corrected URL
+    const res = await fetch('https://b52a-183-82-237-45.ngrok-free.app/api/send-otp', { // ✅ Corrected URL
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
@@ -512,7 +512,7 @@ const sendOtpToEmail = async () => {
   // Function to verify OTP
   const verifyOTP = async () => {
     try {
-      const res = await fetch('https://7756-152-57-145-40.ngrok-free.app/api/verify-otp', { 
+      const res = await fetch('https://b52a-183-82-237-45.ngrok-free.app/api/verify-otp', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp }),
@@ -584,7 +584,7 @@ const sendOtpToEmail = async () => {
         type: 'image/jpeg',
       } as any);
   
-      const analyzeRes = await fetch('https://7756-152-57-145-40.ngrok-free.app/analyze', {
+      const analyzeRes = await fetch('https://b52a-183-82-237-45.ngrok-free.app/analyze', {
         method: 'POST',
         body: analyzeFormData,
       });
@@ -615,7 +615,7 @@ const sendOtpToEmail = async () => {
       // ✅ Replacing normal fetch here with XHR for progress
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', 'https://7756-152-57-145-40.ngrok-free.app/api/upload/new');
+        xhr.open('POST', 'https://b52a-183-82-237-45.ngrok-free.app/api/upload/new');
   
         xhr.setRequestHeader('Accept', 'application/json');
   
@@ -681,7 +681,7 @@ const sendOtpToEmail = async () => {
     }
 
     try {
-      const res = await fetch('https://7756-152-57-145-40.ngrok-free.app/api/reset-password', {
+      const res = await fetch('https://b52a-183-82-237-45.ngrok-free.app/api/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, newPassword }),
@@ -703,7 +703,7 @@ const sendOtpToEmail = async () => {
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const res = await fetch('https://7756-152-57-145-40.ngrok-free.app/api/upload/all');
+        const res = await fetch('https://b52a-183-82-237-45.ngrok-free.app/api/upload/all');
         const data = await res.json();
         setAllReports(data);
       } catch (err) {
@@ -1307,7 +1307,7 @@ const sendOtpToEmail = async () => {
                 onRefresh={async () => {
                   setLoadingReports(true);
                   try {
-                    const res = await fetch('https://7756-152-57-145-40.ngrok-free.app/api/upload/all');
+                    const res = await fetch('https://b52a-183-82-237-45.ngrok-free.app/api/upload/all');
                     const data = await res.json();
                     setAllReports(data);
                   } catch (err) {
@@ -1350,35 +1350,51 @@ const sendOtpToEmail = async () => {
                 </ThemedText>
 
                 <View style={styles.mapBox}>
-                  <WebView
-                    originWhitelist={['*']}
-                    source={{
-                      html: `
-                        <!DOCTYPE html>
-                        <html>
-                          <head>
-                            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                            <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
-                            <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-                            <style> html, body { height: 100%; margin: 0; padding: 0; } #map { width: 100%; height: 100%; } </style>
-                          </head>
-                          <body>
-                            <div id="map"></div>
-                            <script>
-                              var map = L.map('map').setView([${selectedReport?.latitude || 17.385044}, ${selectedReport?.longitude || 78.486671}], 13);
-                              L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                                attribution: '© OpenStreetMap contributors'
-                              }).addTo(map);
-                              L.marker([${selectedReport?.latitude || 17.385044}, ${selectedReport?.longitude || 78.486671}]).addTo(map)
-                                .bindPopup('Reported Location')
-                                .openPopup();
-                            </script>
-                          </body>
-                        </html>
-                      `
-                    }}
-                    style={{ width: '100%', height: '100%' }}
-                  />
+                <WebView
+                  originWhitelist={['*']}
+                  source={{
+                    html: `
+                      <!DOCTYPE html>
+                      <html>
+                        <head>
+                          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                          <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"/>
+                          <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+                          <style>
+                            html, body { height: 100%; margin: 0; padding: 0; }
+                            #map { width: 100%; height: 100%; }
+                          </style>
+                        </head>
+                        <body>
+                          <div id="map"></div>
+                          <script>
+                            const map = L.map('map').setView([17.385044, 78.486671], 12);
+                            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                              attribution: '&copy; OpenStreetMap contributors'
+                            }).addTo(map);
+
+                            const reports = ${JSON.stringify(
+                              allReports
+                                .filter(r => r.latitude && r.longitude)
+                                .map(r => ({
+                                  lat: r.latitude,
+                                  lon: r.longitude,
+                                  summary: r.summary,
+                                  location: r.location,
+                                }))
+                            )};
+
+                            reports.forEach(report => {
+                              L.marker([report.lat, report.lon]).addTo(map)
+                                .bindPopup('<b>' + report.location + '</b><br>' + report.summary);
+                            });
+                          </script>
+                        </body>
+                      </html>
+                    `
+                  }}
+                  style={{ width: '100%', height: '100%' }}
+                />
                 </View>
               </View>
 
@@ -1403,7 +1419,7 @@ const sendOtpToEmail = async () => {
                       {/* Report Card Content */}
                       {report.imageUrl ? (
                         <Image
-                          source={{ uri: `https://7756-152-57-145-40.ngrok-free.app${report.imageUrl}` }}
+                          source={{ uri: `https://b52a-183-82-237-45.ngrok-free.app${report.imageUrl}` }}
                           style={{
                             width: 60,
                             height: 60,
@@ -1459,14 +1475,23 @@ const sendOtpToEmail = async () => {
 
       {/* Supervisor View Page - Displays Image & Location */}
       {screen === 'supervisorReportView' && selectedReport && (
-        <ScrollView contentContainerStyle={{ alignItems: 'center', padding: 20 }}>
-          <View style={styles.supervisorViewContainer}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{
+            width: '100%',
+            maxWidth: 400,
+            alignSelf: 'center',
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0.7)',
+            padding: 20,
+            borderRadius: 15,
+          }}>
             <ThemedText type="title" style={styles.authTitle}>Report Details</ThemedText>
 
             {/* Image */}
             {selectedReport.imageUrl ? (
               <Image
-                source={{ uri: `https://7756-152-57-145-40.ngrok-free.app${selectedReport.imageUrl}` }}
+                source={{ uri: `https://b52a-183-82-237-45.ngrok-free.app${selectedReport.imageUrl}` }}
                 style={{ width: 250, height: 250, borderRadius: 15, marginBottom: 20 }}
                 resizeMode="cover"
               />
@@ -1504,7 +1529,7 @@ const sendOtpToEmail = async () => {
                 style={[styles.submitButton, { backgroundColor: 'green', marginBottom: 20 }]}
                 onPress={async () => {
                   try {
-                    const res = await fetch(`https://7756-152-57-145-40.ngrok-free.app/api/upload/resolve/${selectedReport._id}`, {
+                    const res = await fetch(`https://b52a-183-82-237-45.ngrok-free.app/api/upload/resolve/${selectedReport._id}`, {
                       method: 'PUT',
                       headers: { 'Content-Type': 'application/json' },
                     });
@@ -1540,6 +1565,7 @@ const sendOtpToEmail = async () => {
           </View>
         </ScrollView>
       )}
+
     </ImageBackground>
   );
 }
@@ -1567,7 +1593,7 @@ const styles = StyleSheet.create({
   SignupContainer: {width: '90%', maxWidth: 400, padding: 20, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
   workerDashboardContainer: {width: '90%', maxWidth: 400, padding: 20, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
   imageUploadContainer: {width: '90%', maxWidth: 400, padding: 20, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
-  supervisorViewContainer: {width: '90%', maxWidth: 400, padding: 20, borderRadius: 15, backgroundColor: 'rgba(0, 0, 0, 0.7)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000',shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
+  supervisorViewContainer: { width: '100%', maxWidth: 400, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.7)', padding: 20, borderRadius: 15, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},
   linkText: {color: 'white'},
   overlay: {flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0, 0, 0, 0.4)', width: '100%', height: '100%',},
   videoBackground: {position: 'absolute',top: 0,left: 0,right: 0,bottom: 0,width: '100%',height: '100%',zIndex: -1,},
@@ -1582,20 +1608,7 @@ const styles = StyleSheet.create({
   boldText: { fontWeight: 'bold', },
   backButtonContainer: { position: 'absolute', top: 20, left: 20, },
   buttonContainer: { flexDirection: 'column',justifyContent: 'center',alignItems: 'center',gap: 15,marginBottom: 20,},
-  supervisorDashboardContainer: { 
-    padding: 20, 
-    backgroundColor: 'rgba(255,255,255,0.85)', 
-    flexGrow: 1, 
-    width: '95%',
-    maxWidth: 500, 
-    borderRadius: 15, 
-    alignItems: 'center', 
-    justifyContent: 'flex-start', 
-    shadowColor: '#000', 
-    shadowOffset: { width: 0, height: 4 }, 
-    shadowOpacity: 0.3, 
-    shadowRadius: 5,
-  },  
+  supervisorDashboardContainer: { padding: 20, backgroundColor: 'rgba(32, 26, 26, 0.71)', flexGrow: 1, width: '95%', maxWidth: 500, borderRadius: 15, alignItems: 'center', justifyContent: 'flex-start', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5,},  
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', marginBottom: 20, },
   dashboardCard: { flexBasis: '30%', minWidth: 100, borderRadius: 12, padding: 15, margin: 5,},
   cardTitle: { color: '#fff', fontSize: 16,},
