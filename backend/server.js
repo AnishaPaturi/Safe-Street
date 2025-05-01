@@ -7,9 +7,9 @@ const FormData = require('form-data');
 const fs = require('fs');
 const nodemailer = require('nodemailer');
 const bcrypt = require('bcrypt');
+const pdf = require('html-pdf');
 require('dotenv').config();
-const chatbotRoutes = require('./routes/chatbot');
-
+const path = require('path');
 
 // Import Models
 const User = require('./models/User');
@@ -20,19 +20,29 @@ const Upload = require('./models/Upload');
 const authRoutes = require('./routes/auth');
 const uploadRoutes = require('./routes/upload');
 const analyzeRoutes = require('./routes/analyze');
-app.use('/api/chatbot', chatbotRoutes);
-
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
+app.use('/pdfs', express.static(path.join(__dirname, 'pdfs')));
 
-
-// In-memory store for OTPs
+// --- In-Memory Store for OTPs ---
 let otpStore = {};
 
-// --- OTP and Password Reset APIs ---
+// --- MongoDB Connection ---
+mongoose.connect(process.env.MONGO_URI)
+  .then(() => console.log('✅ MongoDB connected'))
+  .catch(err => console.error('❌ MongoDB connection error:', err));
+
+// --- Multer Setup ---
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'uploads/'),
+  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
+});
+const upload = multer({ storage });
+
+// --- OTP APIs ---
 app.post('/api/send-otp', async (req, res) => {
   try {
     const { email } = req.body;
@@ -66,7 +76,6 @@ app.post('/api/send-otp', async (req, res) => {
   }
 });
 
-// Verify OTP
 app.post('/api/verify-otp', (req, res) => {
   const { email, otp } = req.body;
   const record = otpStore[email];
@@ -79,7 +88,6 @@ app.post('/api/verify-otp', (req, res) => {
   res.json({ message: 'OTP verified successfully.' });
 });
 
-// Reset Password
 app.post('/api/reset-password', async (req, res) => {
   try {
     const { email, newPassword } = req.body;
@@ -90,8 +98,7 @@ app.post('/api/reset-password', async (req, res) => {
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    user.password = hashedPassword;
+    user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
 
     delete otpStore[email];
@@ -102,40 +109,18 @@ app.post('/api/reset-password', async (req, res) => {
   }
 });
 
-// --- MongoDB Connection ---
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅ MongoDB connected'))
-  .catch(err => console.error('❌ MongoDB connection error:', err));
-
-// --- Multer Setup for Uploads ---
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname),
-});
-const upload = multer({ storage });
-
-// --- Analyze Route ---
+// --- Image Analyze Route ---
 app.post('/analyze', upload.single('image'), async (req, res) => {
-  console.log("📸 Uploaded file:", req.file);
-
-  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-
   try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+
     const form = new FormData();
     form.append('image', fs.createReadStream(req.file.path));
 
-    console.log("📤 Sending to Flask...");
-    const flaskURL = 'https://2c8d-35-196-215-2.ngrok-free.app/analyze';
-    console.log("📡 Sending POST request to:", flaskURL);
-
+    const flaskURL = 'https://e0a4-35-188-227-234.ngrok-free.app/analyze';
     const response = await axios.post(flaskURL, form, {
-      headers: {
-        ...form.getHeaders(),
-        'Content-Type': 'multipart/form-data'
-      },
+      headers: { ...form.getHeaders() },
     });
-
-    console.log('✅ Flask Response:', response.data);
 
     const newSummary = new Summary({
       imageUrl: `/uploads/${req.file.filename}`,
@@ -143,146 +128,127 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
       summary: response.data.summary || 'No summary available',
       address: req.body.location || response.data.address || 'Address not provided',
     });
-    
-    await newSummary.save();
-    console.log('✅ Summary saved to MongoDB');
 
-    fs.unlink(req.file.path, (err) => {
+    await newSummary.save();
+
+    fs.unlink(req.file.path, err => {
       if (err) console.error('Error deleting file:', err);
     });
 
     res.json({
-      message: 'Analysis and saving successful!',
+      message: 'Analysis successful!',
       data: {
         summary: newSummary.summary,
         address: newSummary.address,
         imageUrl: newSummary.imageUrl,
         _id: newSummary._id,
         createdAt: newSummary.createdAt,
-      }
+      },
     });
 
   } catch (err) {
     console.error('🔥 Analyze error:', err);
-
-    if (req.file?.path) {
-      fs.unlink(req.file.path, (err) => {
-        if (err) console.error('Error deleting file:', err);
-      });
-    }
-
-    res.status(500).json({
-      error: 'Failed to analyze and save image',
-      details: err.message,
-    });
+    if (req.file?.path) fs.unlink(req.file.path, () => {});
+    res.status(500).json({ error: 'Failed to analyze image', details: err.message });
   }
 });
 
-// --- Upload New Route for Mobile App ---
+// --- Upload New (for Mobile App) ---
 app.post('/api/upload/new', upload.single('image'), async (req, res) => {
   try {
     const { userId, location, summary } = req.body;
-    console.log('📥 New Upload Request:', req.body);
-
     if (!userId || !location || !summary) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // ✅ Fetch latitude and longitude using OpenStreetMap (Nominatim)
     let latitude = null;
     let longitude = null;
 
     try {
-      const geocodeRes = await axios.get('https://38bd-183-82-237-45.ngrok-free.app/search', {
-        params: {
-          q: location,
-          format: 'json',
-          limit: 1,
-        },
-        headers: {
-          'User-Agent': 'SafeStreetApp/1.0 (youremail@example.com)', // required by OpenStreetMap
-        }
+      const geo = await axios.get('https://95f2-183-82-237-45.ngrok-free.app/search', {
+        params: { q: location, format: 'json', limit: 1 },
+        headers: { 'User-Agent': 'SafeStreetApp/1.0 (youremail@example.com)' }
       });
 
-      if (geocodeRes.data.length > 0) {
-        latitude = parseFloat(geocodeRes.data[0].lat);
-        longitude = parseFloat(geocodeRes.data[0].lon);
-        console.log('📍 Geocoded Location:', latitude, longitude);
+      if (geo.data.length > 0) {
+        latitude = parseFloat(geo.data[0].lat);
+        longitude = parseFloat(geo.data[0].lon);
       }
     } catch (geoErr) {
-      console.error('Failed to geocode location:', geoErr.message);
+      console.error('Geocoding error:', geoErr.message);
     }
 
-    // ✅ Save everything to database
     const newUpload = new Upload({
       userId,
       imageUrl: req.file ? `/uploads/${req.file.filename}` : '',
       location,
       summary,
-      latitude,   // save fetched latitude
-      longitude,  // save fetched longitude
-      status: 'Pending', // default status
+      latitude,
+      longitude,
+      status: 'Pending',
     });
 
     await newUpload.save();
-
-    const responseData = {
+    res.json({
       message: 'Upload saved successfully!',
-      data: {
-        summary: newUpload.summary,
-        address: newUpload.location,
-        latitude: newUpload.latitude,
-        longitude: newUpload.longitude,
-        imageUrl: newUpload.imageUrl,
-        _id: newUpload._id,
-        createdAt: newUpload.createdAt,
-      },
-    };
-
-    console.log('📤 Server Response:', responseData);
-    res.json(responseData);
+      data: newUpload,
+    });
 
   } catch (err) {
-    console.error('Upload save error:', err);
+    console.error('Upload error:', err);
     res.status(500).json({ error: 'Failed to save upload' });
   }
 });
 
-// --- ✅ Fetch all previous uploads ---
+// --- Get All Uploads ---
 app.get('/api/upload/all', async (req, res) => {
   try {
     const uploads = await Upload.find().sort({ createdAt: -1 });
     res.json(uploads);
   } catch (error) {
-    console.error('Error fetching uploads:', error);
     res.status(500).json({ error: 'Failed to fetch uploads' });
   }
 });
 
-// ✅ Mark Report as Resolved
+// --- Mark Upload as Resolved ---
 app.put('/api/upload/resolve/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const upload = await Upload.findById(id);
 
-    if (!upload) {
-      return res.status(404).json({ error: 'Report not found' });
-    }
+    if (!upload) return res.status(404).json({ error: 'Report not found' });
 
     upload.status = 'Resolved';
     await upload.save();
-
     res.json({ message: 'Report marked as resolved ✅' });
   } catch (error) {
-    console.error('Error resolving report:', error);
     res.status(500).json({ error: 'Failed to resolve report' });
   }
 });
 
+// --- Generate PDF ---
+app.post('/api/generate-pdf', async (req, res) => {
+  const { html, fileName } = req.body;
+  if (!html || !fileName) {
+    return res.status(400).json({ error: 'Missing HTML or fileName' });
+  }
 
+  const filePath = path.join(__dirname, 'pdfs', `${fileName}.pdf`);
+  
+  // 🔥 NOTE TO FRONTEND: Do not fetch the returned URL expecting JSON.
+  pdf.create(html).toFile(filePath, (err, result) => {
+    if (err) {
+      console.error('PDF generation error:', err);
+      return res.status(500).json({ error: 'Failed to create PDF' });
+    }
 
+    const publicUrl = `${req.protocol}://${req.get('host')}/pdfs/${fileName}.pdf`;
+    res.json({ url: publicUrl });
+    res.status(200).json({ url: publicUrl });
+  });
+});
 
-// --- Main Routes ---
+// --- Register Routes ---
 app.use('/api/auth', authRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/analyze', analyzeRoutes);
