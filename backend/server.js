@@ -189,7 +189,7 @@ app.post('/api/upload/new', upload.single('image'), async (req, res) => {
     let longitude = null;
 
     try {
-      const geocodeRes = await axios.get('https://nominatim.openstreetmap.org/search', {
+      const geocodeRes = await axios.get('https://0178-34-106-146-166.ngrok-free.app/search', {
         params: {
           q: location,
           format: 'json',
