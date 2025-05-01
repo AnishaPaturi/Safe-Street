@@ -8,6 +8,8 @@ const fs = require('fs');
 const nodemailer = require('nodemailer');
 const bcrypt = require('bcrypt');
 require('dotenv').config();
+const chatbotRoutes = require('./routes/chatbot');
+
 
 // Import Models
 const User = require('./models/User');
@@ -18,6 +20,8 @@ const Upload = require('./models/Upload');
 const authRoutes = require('./routes/auth');
 const uploadRoutes = require('./routes/upload');
 const analyzeRoutes = require('./routes/analyze');
+app.use('/api/chatbot', chatbotRoutes);
+
 
 const app = express();
 app.use(cors());
@@ -121,7 +125,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     form.append('image', fs.createReadStream(req.file.path));
 
     console.log("📤 Sending to Flask...");
-    const flaskURL = 'https://fc82-35-204-125-210.ngrok-free.app/analyze';
+    const flaskURL = 'https://2c8d-35-196-215-2.ngrok-free.app/analyze';
     console.log("📡 Sending POST request to:", flaskURL);
 
     const response = await axios.post(flaskURL, form, {
@@ -189,7 +193,7 @@ app.post('/api/upload/new', upload.single('image'), async (req, res) => {
     let longitude = null;
 
     try {
-      const geocodeRes = await axios.get('https://0178-34-106-146-166.ngrok-free.app/search', {
+      const geocodeRes = await axios.get('https://38bd-183-82-237-45.ngrok-free.app/search', {
         params: {
           q: location,
           format: 'json',
