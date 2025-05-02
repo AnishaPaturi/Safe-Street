@@ -1,21 +1,24 @@
 {
   "expo": {
-    "name": "SafeStreet",
-    "slug": "SafeStreet",
+    "name": "PS",
+    "slug": "PS",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
+    "jsEngine": "hermes",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
+    
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.anishapaturi.PS"
     },
     "web": {
       "bundler": "metro",
@@ -32,10 +35,25 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Safe Street to access your location to find your manually entered addresses"
+        }
       ]
     ],
+
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "ae1968da-f8ce-454e-904d-21a86beec2bb"
+      }
     }
   }
 }

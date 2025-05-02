@@ -23,7 +23,7 @@ import { ActivityIndicator } from 'react-native';
 import { RefreshControl } from 'react-native';
 import RNHTMLtoPDF from 'react-native-html-to-pdf';
 import * as WebBrowser from 'expo-web-browser';
-
+import * as MediaLibrary from 'expo-media-library';
 
 
 
@@ -765,8 +765,99 @@ const sendOtpToEmail = async () => {
     }
   };
   
+
+  // const downloadAndSavePdf = async (url: string) => {
+  //   try {
+  //     const filename = url.split('/').pop() || 'report.pdf';
+  //     const downloadPath = FileSystem.documentDirectory + filename;
+  
+  //     const { status } = await MediaLibrary.requestPermissionsAsync();
+  //     if (status !== 'granted') {
+  //       Alert.alert('Permission Denied', 'Storage permission is required to save the PDF.');
+  //       return;
+  //     }
+  
+  //     const downloadRes = await FileSystem.downloadAsync(url, downloadPath);
+  //     console.log('📥 Downloaded to:', downloadRes.uri);
+  
+  //     const asset = await MediaLibrary.createAssetAsync(downloadRes.uri);
+  //     await MediaLibrary.createAlbumAsync('Download', asset, false);
+  //     Alert.alert('✅ Success', 'PDF downloaded and saved to your device.');
+  
+  //   } catch (error) {
+  //     console.error('❌ PDF Download Error:', error);
+  //     Alert.alert('Error', 'Failed to download PDF.');
+  //   }
+  // };
+
+
+  const downloadAndSavePdf = async (pdfUrl: string): Promise<void> => {
+    try {
+      await WebBrowser.openBrowserAsync(pdfUrl);
+    } catch (error) {
+      console.error('Error opening PDF:', error);
+    }
+  };
+  
+
+
+
+
+  const handleDownloadPdf = async () => {
+    try {
+      // Fetch the PDF URL from your server
+      const response = await fetch('https://95f2-183-82-237-45.ngrok-free.app/generate-pdf', {
+        method: 'POST', // or 'GET', depending on your backend
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image: '...',      // whatever your API needs
+          summary: '...',
+          location: '...'
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.pdfUrl) {
+        throw new Error('No PDF URL returned');
+      }
+
+      // Open the PDF in the browser
+      await WebBrowser.openBrowserAsync(data.pdfUrl);
+
+    } catch (error) {
+      console.error('PDF open error:', error);
+      Alert.alert('Error', 'Failed to open PDF.');
+    }
+  };
+
+  const generateAndOpenPdf = async (html: string, fileName: string): Promise<void> => {
+    try {
+      const response = await fetch('https://95f2-183-82-237-45.ngrok-free.app/api/generate-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html, fileName }),
+      });
+  
+      const data: { url?: string } = await response.json();
+  
+      if (!data.url) {
+        throw new Error('No PDF URL returned');
+      }
+  
+      await WebBrowser.openBrowserAsync(data.url);
+  
+    } catch (error) {
+      console.error('PDF generation/open error:', error);
+      Alert.alert('Error', 'Failed to generate or open PDF.');
+    }
+  };
   
   
+
+
   
   
   return (
@@ -1549,46 +1640,46 @@ const sendOtpToEmail = async () => {
             </Text>
             {/* Download PDF */}
             <TouchableOpacity
-                style={[styles.submitButton, { backgroundColor: 'blue', marginBottom: 20 }]}
-                onPress={async () => {
-                    try {
-                    const htmlContent = `
-                        <h1>SafeStreet Report</h1>
-                        <p><strong>Location:</strong> ${selectedReport.location}</p>
-                        <p><strong>Summary:</strong> ${selectedReport.summary}</p>
-                        <p><strong>Date:</strong> ${new Date(selectedReport.createdAt).toLocaleString('en-IN')}</p>
-                        <p><strong>Status:</strong> ${selectedReport.status}</p>
-                    `;
+              style={[styles.submitButton, { backgroundColor: 'blue', marginBottom: 20 }]}
+              onPress={async () => {
+                try {
+                  const htmlContent = `
+                    <h1>SafeStreet Report</h1>
+                    <p><strong>Location:</strong> ${selectedReport.location}</p>
+                    <p><strong>Summary:</strong> ${selectedReport.summary}</p>
+                    <p><strong>Date:</strong> ${new Date(selectedReport.createdAt).toLocaleString('en-IN')}</p>
+                    <p><strong>Status:</strong> ${selectedReport.status}</p>
+                  `;
 
-                    const response = await fetch('https://95f2-183-82-237-45.ngrok-free.app/api/generate-pdf', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                        html: htmlContent,
-                        fileName: `safestreet-report-${selectedReport._id}`
-                        }),
-                    });
+                  const response = await fetch('https://95f2-183-82-237-45.ngrok-free.app/api/generate-pdf', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      html: htmlContent,
+                      fileName: `safestreet-report-${selectedReport._id}`,
+                    }),
+                  });
 
-                    const contentType = response.headers.get('Content-Type') || '';
-                    if (contentType.includes('application/json')) {
-                        const data = await response.json();
-                        if (response.ok && data.url) {
-                        await WebBrowser.openBrowserAsync(data.url);
-                        } else {
-                        Alert.alert('Error', 'Failed to generate PDF.');
-                        }
+                  const contentType = response.headers.get('Content-Type') || '';
+                  if (contentType.includes('application/json')) {
+                    const data = await response.json();
+                    if (response.ok && data.url) {
+                      await downloadAndSavePdf(data.url);  // ✅ This is where you download it
                     } else {
-                        const rawText = await response.text();
-                        console.error('Unexpected response:', rawText);
-                        Alert.alert('Error', 'Server returned unexpected content. Please try again.');
+                      Alert.alert('Error', 'Failed to generate PDF.');
                     }
-                    } catch (error) {
-                    console.error('PDF generation error:', error);
-                    Alert.alert('Error', 'Something went wrong while creating the PDF.');
-                    }
-                }}
-                >
-                <Text style={styles.buttonText}>Download Summary as PDF</Text>
+                  } else {
+                    const rawText = await response.text();
+                    console.error('Unexpected response:', rawText);
+                    Alert.alert('Error', 'Server returned unexpected content.');
+                  }
+                } catch (error) {
+                  console.error('PDF generation error:', error);
+                  Alert.alert('Error', 'Something went wrong while creating the PDF.');
+                }
+              }}
+            >
+              <Text style={styles.buttonText}>Download Summary as PDF</Text>
             </TouchableOpacity>
 
 

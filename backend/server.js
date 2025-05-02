@@ -117,7 +117,7 @@ app.post('/analyze', upload.single('image'), async (req, res) => {
     const form = new FormData();
     form.append('image', fs.createReadStream(req.file.path));
 
-    const flaskURL = 'https://e0a4-35-188-227-234.ngrok-free.app/analyze';
+    const flaskURL = 'https://e181-34-73-14-92.ngrok-free.app/analyze';
     const response = await axios.post(flaskURL, form, {
       headers: { ...form.getHeaders() },
     });
@@ -235,7 +235,6 @@ app.post('/api/generate-pdf', async (req, res) => {
 
   const filePath = path.join(__dirname, 'pdfs', `${fileName}.pdf`);
   
-  // 🔥 NOTE TO FRONTEND: Do not fetch the returned URL expecting JSON.
   pdf.create(html).toFile(filePath, (err, result) => {
     if (err) {
       console.error('PDF generation error:', err);
@@ -243,10 +242,10 @@ app.post('/api/generate-pdf', async (req, res) => {
     }
 
     const publicUrl = `${req.protocol}://${req.get('host')}/pdfs/${fileName}.pdf`;
-    res.json({ url: publicUrl });
-    res.status(200).json({ url: publicUrl });
+    return res.status(200).json({ url: publicUrl });
   });
 });
+
 
 // --- Register Routes ---
 app.use('/api/auth', authRoutes);
