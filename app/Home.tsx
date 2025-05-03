@@ -21,9 +21,13 @@ import { ScrollView } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { ActivityIndicator } from 'react-native';
 import { RefreshControl } from 'react-native';
-import RNHTMLtoPDF from 'react-native-html-to-pdf';
+// import RNHTMLtoPDF from 'react-native-html-to-pdf';
 import * as WebBrowser from 'expo-web-browser';
 import * as MediaLibrary from 'expo-media-library';
+//import Icon from 'react-native-vector-icons/MaterialIcons';
+import { MaterialIcons } from '@expo/vector-icons';
+
+  
 
 
 
@@ -134,7 +138,7 @@ export default function HomeScreen()
         } as any);
 
         console.log('📤 Sending request to Flask server...');
-        const aiResponse = await fetch('https://95f2-183-82-237-45.ngrok-free.app/analyze', {
+        const aiResponse = await fetch('https://3876-183-82-237-45.ngrok-free.app/analyze', {
             method: 'POST',
             body: formData,
             headers: {
@@ -254,7 +258,7 @@ export default function HomeScreen()
     }
   
     try {
-      const response = await fetch('https://95f2-183-82-237-45.ngrok-free.app/api/auth/login', {
+      const response = await fetch('https://3876-183-82-237-45.ngrok-free.app/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -345,7 +349,7 @@ export default function HomeScreen()
     }
     
     try {
-      const response = await fetch('https://95f2-183-82-237-45.ngrok-free.app/api/auth/signup', {
+      const response = await fetch('https://3876-183-82-237-45.ngrok-free.app/api/auth/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -510,7 +514,7 @@ const sendOtpToEmail = async () => {
   }
 
   try {
-    const res = await fetch('https://95f2-183-82-237-45.ngrok-free.app/api/send-otp', { // ✅ Corrected URL
+    const res = await fetch('https://3876-183-82-237-45.ngrok-free.app/api/send-otp', { // ✅ Corrected URL
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email }),
@@ -531,7 +535,7 @@ const sendOtpToEmail = async () => {
   // Function to verify OTP
   const verifyOTP = async () => {
     try {
-      const res = await fetch('https://95f2-183-82-237-45.ngrok-free.app/api/verify-otp', { 
+      const res = await fetch('https://3876-183-82-237-45.ngrok-free.app/api/verify-otp', { 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, otp }),
@@ -603,7 +607,7 @@ const sendOtpToEmail = async () => {
         type: 'image/jpeg',
       } as any);
   
-      const analyzeRes = await fetch('https://95f2-183-82-237-45.ngrok-free.app/analyze', {
+      const analyzeRes = await fetch('https://3876-183-82-237-45.ngrok-free.app/analyze', {
         method: 'POST',
         body: analyzeFormData,
       });
@@ -634,7 +638,7 @@ const sendOtpToEmail = async () => {
       // ✅ Replacing normal fetch here with XHR for progress
       await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-        xhr.open('POST', 'https://95f2-183-82-237-45.ngrok-free.app/api/upload/new');
+        xhr.open('POST', 'https://3876-183-82-237-45.ngrok-free.app/api/upload/new');
   
         xhr.setRequestHeader('Accept', 'application/json');
   
@@ -700,7 +704,7 @@ const sendOtpToEmail = async () => {
     }
 
     try {
-      const res = await fetch('https://95f2-183-82-237-45.ngrok-free.app/api/reset-password', {
+      const res = await fetch('https://3876-183-82-237-45.ngrok-free.app/api/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, newPassword }),
@@ -722,7 +726,7 @@ const sendOtpToEmail = async () => {
   useEffect(() => {
     const fetchReports = async () => {
       try {
-        const res = await fetch('https://95f2-183-82-237-45.ngrok-free.app/api/upload/all');
+        const res = await fetch('https://3876-183-82-237-45.ngrok-free.app/api/upload/all');
         const data = await res.json();
         setAllReports(data);
       } catch (err) {
@@ -806,7 +810,7 @@ const sendOtpToEmail = async () => {
   const handleDownloadPdf = async () => {
     try {
       // Fetch the PDF URL from your server
-      const response = await fetch('https://95f2-183-82-237-45.ngrok-free.app/generate-pdf', {
+      const response = await fetch('https://3876-183-82-237-45.ngrok-free.app/generate-pdf', {
         method: 'POST', // or 'GET', depending on your backend
         headers: {
           'Content-Type': 'application/json',
@@ -835,7 +839,7 @@ const sendOtpToEmail = async () => {
 
   const generateAndOpenPdf = async (html: string, fileName: string): Promise<void> => {
     try {
-      const response = await fetch('https://95f2-183-82-237-45.ngrok-free.app/api/generate-pdf', {
+      const response = await fetch('https://3876-183-82-237-45.ngrok-free.app/api/generate-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ html, fileName }),
@@ -861,9 +865,9 @@ const sendOtpToEmail = async () => {
   
   
   return (
-    <ImageBackground source={require('@/assets/images/potholeclick.png')} style={styles.background}>
+    <ImageBackground source={require('@/assets/images/pothole_click.png')} style={styles.background}>
       {screen === 'home' && (
-        <ImageBackground source={require('@/assets/images/potholeclick.png')} style={styles.background}>
+        <ImageBackground source={require('@/assets/images/pothole_click.png')} style={styles.background}>
           <View style={styles.HomeContainer}>
             <Animated.View style={[styles.homeInnerContainer, { opacity: logoOpacity }]}>
               <Animated.Image
@@ -1402,7 +1406,7 @@ const sendOtpToEmail = async () => {
       {/* Supervisor Dashboard */}
       {screen === 'supervisorDashboard' && (
         <ImageBackground
-          source={require('@/assets/images/potholeclick.png')}
+          source={require('@/assets/images/pothole_click.png')}
           style={{ flex: 1, width: '100%', height: '100%' }}
           resizeMode="cover"
         >
@@ -1419,7 +1423,7 @@ const sendOtpToEmail = async () => {
                 onRefresh={async () => {
                   setLoadingReports(true);
                   try {
-                    const res = await fetch('https://95f2-183-82-237-45.ngrok-free.app/api/upload/all');
+                    const res = await fetch('https://3876-183-82-237-45.ngrok-free.app/api/upload/all');
                     const data = await res.json();
                     setAllReports(data);
                   } catch (err) {
@@ -1531,7 +1535,7 @@ const sendOtpToEmail = async () => {
                         {/* Image (or Placeholder) */}
                         {report.imageUrl ? (
                             <Image
-                            source={{ uri: `https://95f2-183-82-237-45.ngrok-free.app${report.imageUrl}` }}
+                            source={{ uri: `https://3876-183-82-237-45.ngrok-free.app${report.imageUrl}` }}
                             style={{
                                 width: 60,
                                 height: 60,
@@ -1607,7 +1611,7 @@ const sendOtpToEmail = async () => {
             {/* Image */}
             {selectedReport.imageUrl ? (
               <Image
-                source={{ uri: `https://95f2-183-82-237-45.ngrok-free.app${selectedReport.imageUrl}` }}
+                source={{ uri: `https://3876-183-82-237-45.ngrok-free.app${selectedReport.imageUrl}` }}
                 style={{ width: 250, height: 250, borderRadius: 15, marginBottom: 20 }}
                 resizeMode="cover"
               />
@@ -1644,14 +1648,20 @@ const sendOtpToEmail = async () => {
               onPress={async () => {
                 try {
                   const htmlContent = `
-                    <h1>SafeStreet Report</h1>
-                    <p><strong>Location:</strong> ${selectedReport.location}</p>
-                    <p><strong>Summary:</strong> ${selectedReport.summary}</p>
-                    <p><strong>Date:</strong> ${new Date(selectedReport.createdAt).toLocaleString('en-IN')}</p>
-                    <p><strong>Status:</strong> ${selectedReport.status}</p>
+                    <html>
+                      <body>
+                        <h1>SafeStreet Report</h1>
+                        <p><strong>Location:</strong> ${selectedReport.location}</p>
+                        <p><strong>Summary:</strong> ${selectedReport.summary}</p>
+                        <p><strong>Date:</strong> ${new Date(selectedReport.createdAt).toLocaleString('en-IN')}</p>
+                        <p><strong>Status:</strong> ${selectedReport.status}</p>
+                        <img src="https://3876-183-82-237-45.ngrok-free.app${selectedReport.imageUrl}" style="width:100%;max-width:400px;margin-top:20px;" />
+                      </body>
+                    </html>
                   `;
 
-                  const response = await fetch('https://95f2-183-82-237-45.ngrok-free.app/api/generate-pdf', {
+
+                  const response = await fetch('https://3876-183-82-237-45.ngrok-free.app/api/generate-pdf', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -1691,7 +1701,7 @@ const sendOtpToEmail = async () => {
                 style={[styles.submitButton, { backgroundColor: 'green', marginBottom: 20 }]}
                 onPress={async () => {
                   try {
-                    const res = await fetch(`https://95f2-183-82-237-45.ngrok-free.app/api/upload/resolve/${selectedReport._id}`, {
+                    const res = await fetch(`https://3876-183-82-237-45.ngrok-free.app/api/upload/resolve/${selectedReport._id}`, {
                       method: 'PUT',
                       headers: { 'Content-Type': 'application/json' },
                     });
